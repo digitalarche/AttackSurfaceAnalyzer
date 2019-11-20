@@ -1394,6 +1394,7 @@ namespace AttackSurfaceAnalyzer
 
         public static List<string> GetRuns(string type)
         {
+            DatabaseManager.GetRuns(type);
             string Select_Runs = "select distinct run_id from runs where type=@type order by timestamp asc;";
 
             List<string> Runs = new List<string>();

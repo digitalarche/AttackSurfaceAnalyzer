@@ -14,6 +14,7 @@ namespace AttackSurfaceAnalyzer.Objects
         public string RunId { get; set; }
         public string Identity { get; set; }
         public string Serialized { get; set; }
+        public CollectObject CollectObject { get; set; }
     }
 
     public class RawModifiedResult

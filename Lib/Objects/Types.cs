@@ -56,6 +56,15 @@ namespace AttackSurfaceAnalyzer.Types
         NO_COLLECTORS
     }
 
+    /// <summary>
+    /// Which backend database is being used
+    /// </summary>
+    public enum DB_BACKEND
+    { 
+        SQLITE,
+        LITEDB
+    }
+
 
     /// <summary>
     /// These are the characteristics defined in the PE Header for Windows executables.

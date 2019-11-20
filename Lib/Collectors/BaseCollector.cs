@@ -31,17 +31,8 @@ namespace AttackSurfaceAnalyzer.Collectors
             }
             Start();
 
-            DatabaseManager.BeginTransaction();
-
             ExecuteInternal();
 
-            while (DatabaseManager.HasElements())
-            {
-                Log.Verbose("Waiting for DatabaseManager to finish flushing.");
-                Thread.Sleep(100);
-            }
-
-            DatabaseManager.Commit();
             Stop();
         }
         public abstract bool CanRunOnPlatform();

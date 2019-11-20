@@ -89,8 +89,8 @@ namespace AttackSurfaceAnalyzer.Collectors
                 throw new ArgumentNullException(nameof(secondRunId));
             }
 
-            List<RawCollectResult> addObjects = DatabaseManager.GetMissingFromFirst(firstRunId, secondRunId);
-            List<RawCollectResult> removeObjects = DatabaseManager.GetMissingFromFirst(secondRunId, firstRunId);
+            List<CollectObject> addObjects = DatabaseManager.GetMissingFromFirst(firstRunId, secondRunId);
+            List<CollectObject> removeObjects = DatabaseManager.GetMissingFromFirst(secondRunId, firstRunId);
             List<RawModifiedResult> modifyObjects = DatabaseManager.GetModified(firstRunId, secondRunId);
 
             Parallel.ForEach(addObjects,
@@ -98,10 +98,10 @@ namespace AttackSurfaceAnalyzer.Collectors
             {
                 var obj = new CompareResult()
                 {
-                    Compare = Hydrate(added),
+                    Compare = added,
                     BaseRunId = firstRunId,
                     CompareRunId = secondRunId,
-                    CompareRowKey = added.RowKey,
+                    CompareRowKey = added.Hash,
                     ChangeType = CHANGE_TYPE.CREATED,
                     ResultType = added.ResultType,
                     Identity = added.Identity
@@ -114,10 +114,10 @@ namespace AttackSurfaceAnalyzer.Collectors
             {
                 var obj = new CompareResult()
                 {
-                    Base = Hydrate(removed),
+                    Base = removed,
                     BaseRunId = firstRunId,
                     CompareRunId = secondRunId,
-                    BaseRowKey = removed.RowKey,
+                    BaseRowKey = removed.Hash,
                     ChangeType = CHANGE_TYPE.DELETED,
                     ResultType = removed.ResultType,
                     Identity = removed.Identity
@@ -128,21 +128,21 @@ namespace AttackSurfaceAnalyzer.Collectors
             Parallel.ForEach(modifyObjects,
                             (modified =>
             {
-                var first = Hydrate(modified.First);
-                var second = Hydrate(modified.Second);
                 var obj = new CompareResult()
                 {
-                    Base = first,
-                    Compare = second,
+                    Base = modified.First,
+                    Compare = modified.Second,
                     BaseRunId = firstRunId,
                     CompareRunId = secondRunId,
-                    BaseRowKey = modified.First.RowKey,
-                    CompareRowKey = modified.Second.RowKey,
+                    BaseRowKey = modified.First.Hash,
+                    CompareRowKey = modified.Second.Hash,
                     ChangeType = CHANGE_TYPE.MODIFIED,
                     ResultType = modified.First.ResultType,
                     Identity = modified.First.Identity
                 };
 
+                var first = modified.First;
+                var second = modified.Second;
                 var properties = first.GetType().GetProperties();
 
                 foreach (var prop in properties)

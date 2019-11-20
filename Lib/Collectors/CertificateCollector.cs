@@ -48,9 +48,10 @@ namespace AttackSurfaceAnalyzer.Collectors
                                 StoreName = storeName.ToString(),
                                 CertificateHashString = certificate.GetCertHashString(),
                                 Subject = certificate.Subject,
-                                Pkcs7 = certificate.Export(X509ContentType.Cert).ToString()
+                                Pkcs7 = certificate.Export(X509ContentType.Cert).ToString(),
+                                RunId = this.RunId
                             };
-                            DatabaseManager.Write(obj, this.RunId);
+                            DatabaseManager.Write(obj);
                         }
 
                         store.Close();
@@ -88,7 +89,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                             Subject = certificate.Subject,
                             Pkcs7 = certificate.Export(X509ContentType.Cert).ToString()
                         };
-                        DatabaseManager.Write(obj, this.RunId);
+                        DatabaseManager.Write(obj);
                     }
                     catch (Exception e)
                     {
@@ -137,9 +138,10 @@ namespace AttackSurfaceAnalyzer.Collectors
                         StoreName = StoreName.Root.ToString(),
                         CertificateHashString = X509Certificate2Enumerator.Current.GetCertHashString(),
                         Subject = X509Certificate2Enumerator.Current.Subject,
-                        Pkcs7 = X509Certificate2Enumerator.Current.GetRawCertDataString()
+                        Pkcs7 = X509Certificate2Enumerator.Current.GetRawCertDataString(),
+                        RunId = this.RunId
                     };
-                    DatabaseManager.Write(obj, this.RunId);
+                    DatabaseManager.Write(obj);
                 }
             }
             catch (Exception e)

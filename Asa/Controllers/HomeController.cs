@@ -29,7 +29,6 @@ namespace AttackSurfaceAnalyzer.Gui.Controllers
         private const string GET_MONITOR_RESULTS = "select * from file_system_monitored where run_id=@run_id order by timestamp limit @offset,@limit;"; //lgtm [cs/literal-as-local]
         private const string GET_RESULT_COUNT_MONITORED = "select count(*) from file_system_monitored where run_id=@run_id;"; //lgtm [cs/literal-as-local]
 
-        private const string GET_COMPARISON_RESULTS = "select * from findings where comparison_id=@comparison_id and result_type=@result_type order by level desc limit @offset,@limit;"; //lgtm [cs/literal-as-local]
         private const string GET_RESULT_COUNT = "select count(*) from findings where comparison_id=@comparison_id and result_type=@result_type"; //lgtm [cs/literal-as-local]
 
         public HomeController()
@@ -59,58 +58,62 @@ namespace AttackSurfaceAnalyzer.Gui.Controllers
         {
 
             var results = new List<OutputFileMonitorResult>();
-            using (var cmd = new SqliteCommand(GET_MONITOR_RESULTS, DatabaseManager.Connection, DatabaseManager.Transaction))
-            {
-                cmd.Parameters.AddWithValue("@run_id", RunId);
-                cmd.Parameters.AddWithValue("@offset", Offset);
-                cmd.Parameters.AddWithValue("@limit", NumResults);
-                using (var reader = cmd.ExecuteReader())
-                {
-                    while (reader.Read())
-                    {
+            //using (var cmd = new SqliteCommand(GET_MONITOR_RESULTS, DatabaseManager.Connection, DatabaseManager.Transaction))
+            //{
+            //    cmd.Parameters.AddWithValue("@run_id", RunId);
+            //    cmd.Parameters.AddWithValue("@offset", Offset);
+            //    cmd.Parameters.AddWithValue("@limit", NumResults);
+            //    using (var reader = cmd.ExecuteReader())
+            //    {
+            //        while (reader.Read())
+            //        {
 
-                        var obj = new OutputFileMonitorResult()
-                        {
-                            RowKey = reader["row_key"].ToString(),
-                            Timestamp = reader["timestamp"].ToString(),
-                            Path = reader["path"].ToString(),
-                            OldPath = reader["old_path"].ToString(),
-                            Name = reader["path"].ToString(),
-                            OldName = reader["old_path"].ToString(),
-                            ChangeType = (CHANGE_TYPE)int.Parse(reader["change_type"].ToString(), CultureInfo.InvariantCulture),
-                        };
-                        results.Add(obj);
+            //            var obj = new OutputFileMonitorResult()
+            //            {
+            //                RowKey = reader["row_key"].ToString(),
+            //                Timestamp = reader["timestamp"].ToString(),
+            //                Path = reader["path"].ToString(),
+            //                OldPath = reader["old_path"].ToString(),
+            //                Name = reader["path"].ToString(),
+            //                OldName = reader["old_path"].ToString(),
+            //                ChangeType = (CHANGE_TYPE)int.Parse(reader["change_type"].ToString(), CultureInfo.InvariantCulture),
+            //            };
+            //            results.Add(obj);
 
-                    }
-                }
-            }
+            //        }
+            //    }
+            //}
 
-            Dictionary<string, object> output = new Dictionary<string, object>();
-            var result_count = 0;
-            using (var cmd = new SqliteCommand(GET_RESULT_COUNT_MONITORED, DatabaseManager.Connection, DatabaseManager.Transaction))
-            {
-                cmd.Parameters.AddWithValue("@run_id", RunId);
-                using (var reader = cmd.ExecuteReader())
-                {
-                    while (reader.Read())
-                    {
-                        result_count = int.Parse(reader["count(*)"].ToString(), CultureInfo.InvariantCulture);
-                    }
-                }
+            //Dictionary<string, object> output = new Dictionary<string, object>();
+            //var result_count = 0;
+            //using (var cmd = new SqliteCommand(GET_RESULT_COUNT_MONITORED, DatabaseManager.Connection, DatabaseManager.Transaction))
+            //{
+            //    cmd.Parameters.AddWithValue("@run_id", RunId);
+            //    using (var reader = cmd.ExecuteReader())
+            //    {
+            //        while (reader.Read())
+            //        {
+            //            result_count = int.Parse(reader["count(*)"].ToString(), CultureInfo.InvariantCulture);
+            //        }
+            //    }
 
-                output["Results"] = results;
-                output["TotalCount"] = result_count;
-                output["Offset"] = Offset;
-                output["Requested"] = NumResults;
-                output["Actual"] = results.Count;
-            }
-            return Json(JsonConvert.SerializeObject(output));
+            //    output["Results"] = results;
+            //    output["TotalCount"] = result_count;
+            //    output["Offset"] = Offset;
+            //    output["Requested"] = NumResults;
+            //    output["Actual"] = results.Count;
+            //}
+            //return Json(JsonConvert.SerializeObject(output));
 
         }
 
         public ActionResult GetResults(string BaseId, string CompareId, int ResultType, int Offset, int NumResults)
         {
+            var col = DatabaseManager.db.GetCollection<CollectObject>("CollectResults");
+
             var results = new List<CompareResult>();
+            
+            private const string GET_COMPARISON_RESULTS = "select * from findings where comparison_id=@comparison_id and result_type=@result_type order by level desc limit @offset,@limit;"; //lgtm [cs/literal-as-local]
 
             using (var cmd = new SqliteCommand(GET_COMPARISON_RESULTS, DatabaseManager.Connection, DatabaseManager.Transaction))
             {

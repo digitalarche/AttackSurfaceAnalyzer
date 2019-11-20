@@ -19,8 +19,8 @@ namespace AttackSurfaceAnalyzer.Objects
 
     public class RawModifiedResult
     {
-        public RawCollectResult First { get; set; }
-        public RawCollectResult Second { get; set; }
+        public CollectObject First { get; set; }
+        public CollectObject Second { get; set; }
     }
 
     public class FileMonitorEvent

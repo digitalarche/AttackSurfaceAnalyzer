@@ -8,7 +8,6 @@ namespace AttackSurfaceAnalyzer.Objects
     {
         public RESULT_TYPE ResultType { get; set; }
         public abstract string Identity { get; }
-        public abstract string Hash { get; }
         public string RunId { get; set; }
     }
 }

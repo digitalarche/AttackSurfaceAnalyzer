@@ -1,6 +1,8 @@
 ﻿// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 using AttackSurfaceAnalyzer.Types;
+using AttackSurfaceAnalyzer.Utils;
+using Newtonsoft.Json;
 using System.Collections.Generic;
 
 namespace AttackSurfaceAnalyzer.Objects
@@ -14,6 +16,7 @@ namespace AttackSurfaceAnalyzer.Objects
                 return Path;
             }
         }
+
         public string Path { get; set; }
         public ulong Size { get; set; }
         public string SignatureStatus { get; set; }
@@ -28,7 +31,6 @@ namespace AttackSurfaceAnalyzer.Objects
         public List<string> Characteristics { get; }
 
         public List<KeyValuePair<string, string>> Permissions { get; }
-
 
         public FileSystemObject()
         {

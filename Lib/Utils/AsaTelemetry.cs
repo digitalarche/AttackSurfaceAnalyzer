@@ -31,18 +31,13 @@ namespace AttackSurfaceAnalyzer.Utils
             if (Client == null)
             {
                 using var config = TelemetryConfiguration.CreateDefault();
-                using (var cmd = new SqliteCommand(CHECK_TELEMETRY, DatabaseManager.Connection, DatabaseManager.Transaction))
-                {
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            OptOut = bool.Parse(reader["value"].ToString());
-                        }
-                    }
-                }
+
+                var col = DatabaseManager.db.GetCollection<KeyValuePair<string,string>>("Settings");
+
+                var res = col.FindOne(x => x.Key.Equals("TelemetryOptOut"));
+
                 config.InstrumentationKey = INSTRUMENTATION_KEY;
-                config.DisableTelemetry = OptOut;
+                config.DisableTelemetry = res.Key.ToUpper().Equals("TRUE");
                 Client = new TelemetryClient(config);
                 Client.Context.Component.Version = AsaHelpers.GetVersionString();
                 // Force some values to static values to prevent gathering unneeded data
@@ -69,12 +64,11 @@ namespace AttackSurfaceAnalyzer.Utils
             Client.Context.Cloud.RoleInstance = "Asa";
             Client.Context.Cloud.RoleName = "Asa";
             Client.Context.Location.Ip = "1.1.1.1";
-            using (var cmd = new SqliteCommand(UPDATE_TELEMETRY, DatabaseManager.Connection, DatabaseManager.Transaction))
-            {
-                cmd.Parameters.AddWithValue("@TelemetryOptOut", OptOut.ToString(CultureInfo.InvariantCulture));
-                cmd.ExecuteNonQuery();
-                DatabaseManager.Commit();
-            }
+
+            var col = DatabaseManager.db.GetCollection<KeyValuePair<string, string>>("Settings");
+
+            col.Delete(x => x.Key.Equals("TelemetryOptOut"));
+            col.Insert(new KeyValuePair<string, string>("TelemetryOptOut", optOut.ToString()));
         }
 
         public static void TrackEvent(string name, Dictionary<string, string> evt)

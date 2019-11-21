@@ -78,7 +78,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                         {
                             try
                             {
-                                DatabaseManager.Write(registryObject, RunId);
+                                DatabaseManager.Write(registryObject);
                             }
                             catch (InvalidOperationException e)
                             {

@@ -373,16 +373,9 @@ namespace AsaTests
                 var coc = new ComObjectCollector(FirstRunId);
                 coc.Execute();
 
-                List<RawCollectResult> collectResults = DatabaseManager.GetResultsByRunid(FirstRunId);
+                List<CollectObject> collectResults = DatabaseManager.GetResultsByRunid(FirstRunId);
 
-                List<ComObject> comObjects = new List<ComObject>();
-
-                foreach (var collectResult in collectResults)
-                {
-                    comObjects.Add((ComObject)BaseCompare.Hydrate(collectResult));
-                }
-
-                Assert.IsTrue(comObjects.Where(x => x.x86_Binary != null).Count() > 0);
+                Assert.IsTrue(collectResults.Where(x => x is ComObject && ((ComObject)x).x86_Binary != null).Count() > 0);
 
                 TearDown();
             }

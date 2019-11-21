@@ -101,7 +101,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                     Compare = added,
                     BaseRunId = firstRunId,
                     CompareRunId = secondRunId,
-                    CompareRowKey = added.Hash,
+                    CompareRowKey = CryptoHelpers.CreateHash(JsonConvert.SerializeObject(added)),
                     ChangeType = CHANGE_TYPE.CREATED,
                     ResultType = added.ResultType,
                     Identity = added.Identity
@@ -117,7 +117,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                     Base = removed,
                     BaseRunId = firstRunId,
                     CompareRunId = secondRunId,
-                    BaseRowKey = removed.Hash,
+                    BaseRowKey = CryptoHelpers.CreateHash(JsonConvert.SerializeObject(removed)),
                     ChangeType = CHANGE_TYPE.DELETED,
                     ResultType = removed.ResultType,
                     Identity = removed.Identity
@@ -134,8 +134,8 @@ namespace AttackSurfaceAnalyzer.Collectors
                     Compare = modified.Second,
                     BaseRunId = firstRunId,
                     CompareRunId = secondRunId,
-                    BaseRowKey = modified.First.Hash,
-                    CompareRowKey = modified.Second.Hash,
+                    BaseRowKey = CryptoHelpers.CreateHash(JsonConvert.SerializeObject(modified.First)),
+                    CompareRowKey = CryptoHelpers.CreateHash(JsonConvert.SerializeObject(modified.Second)),
                     ChangeType = CHANGE_TYPE.MODIFIED,
                     ResultType = modified.First.ResultType,
                     Identity = modified.First.Identity

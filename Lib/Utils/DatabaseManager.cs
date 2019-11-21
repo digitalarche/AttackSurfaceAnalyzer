@@ -23,11 +23,18 @@ namespace AttackSurfaceAnalyzer.Utils
     {
         public static LiteDatabase db;
 
+        public static string Filename { get; set; }
+
         public static bool FirstRun { get; private set; } = true;
 
         public static bool Setup(string filename)
         {
+            if (db != null)
+            {
+                CloseDatabase();
+            }
             db = new LiteDatabase(filename);
+            Filename = filename;
             return true;
         }
 
@@ -135,29 +142,38 @@ namespace AttackSurfaceAnalyzer.Utils
 
         public static void Write(CollectObject objIn)
         {
-            var col = db.GetCollection<CollectObject>("CollectResults");
+            var col = db.GetCollection<CollectEntry>("CollectResults");
 
-            col.Insert(objIn);
+            col.Insert(new CollectEntry() { Collect = objIn });
         }
 
         public static List<CollectObject> GetMissingFromFirst(string firstRunId, string secondRunId)
         {
-            var col = db.GetCollection<CollectObject>("CollectResult");
+            var col = db.GetCollection<CollectEntry>("CollectResults");
 
-            var res1 = col.Find(Query.EQ("RunId", firstRunId));
-            var res2 = col.Find(Query.EQ("RunId", secondRunId));
-            var res1_ids = (from x in res1 select x.Identity);
-            return res2.Where(x => !res1_ids.Contains(x.Identity)).ToList();
+            var res1 = col.Find(Query.EQ("Collect.RunId", firstRunId));
+            var res2 = col.Find(Query.EQ("Collect.RunId", secondRunId));
+            var res1_ids = (from x in res1 select x.Collect.Identity);
+            var MissingList = res2.Where(x => !res1_ids.Contains(x.Collect.Identity)).ToList();
+            
+            List<CollectObject> output = new List<CollectObject>();
+            
+            foreach (var Missing in MissingList)
+            {
+                output.Add(Missing.Collect);
+            }
+
+            return output;
         }
 
         public static List<RawModifiedResult> GetModified(string firstRunId, string secondRunId)
         {
-            var col = db.GetCollection<CollectObject>("CollectResult");
+            var col = db.GetCollection<CollectEntry>("CollectResults");
 
-            var res1 = col.Find(Query.EQ("RunId", firstRunId));
-            var res2 = col.Find(Query.EQ("RunId", secondRunId));
-            var res1_ids = (from x in res1 select x.Identity);
-            var res = res2.Where(x => res1_ids.Contains(x.Identity) && (x.Hash != res1.Where(y => y.Identity.Equals(x.Identity)).First().Hash));
+            var res1 = col.Find(Query.EQ("Collect.RunId", firstRunId));
+            var res2 = col.Find(Query.EQ("Collect.RunId", secondRunId));
+            var res1_ids = (from x in res1 select x.Collect.Identity);
+            var res = res2.Where(x => res1_ids.Contains(x.Collect.Identity) && (x.Hash != res1.Where(y => y.Collect.Identity.Equals(x.Collect.Identity)).First().Hash));
 
             List<RawModifiedResult> rawModifiedResults = new List<RawModifiedResult>();
 
@@ -165,8 +181,8 @@ namespace AttackSurfaceAnalyzer.Utils
             {
                 rawModifiedResults.Add(new RawModifiedResult()
                 {
-                    First = col.FindOne(Query.And(Query.EQ("RunId", firstRunId), Query.EQ("Identity", r.Identity))),
-                    Second = r
+                    First = col.FindOne(Query.And(Query.EQ("RunId", firstRunId), Query.EQ("Identity", r.Collect.Identity))).Collect,
+                    Second = r.Collect
                 });
             }
 

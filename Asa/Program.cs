@@ -285,7 +285,6 @@ namespace AttackSurfaceAnalyzer
             var argsResult = Parser.Default.ParseArguments<CollectCommandOptions, MonitorCommandOptions, ExportMonitorCommandOptions, ExportCollectCommandOptions, ConfigCommandOptions, GuiCommandOptions>(args)
                 .MapResult(
                     (CollectCommandOptions opts) => RunCollectCommand(opts),
-                    (MonitorCommandOptions opts) => RunMonitorCommand(opts),
                     (ExportCollectCommandOptions opts) => RunExportCollectCommand(opts),
                     (ExportMonitorCommandOptions opts) => RunExportMonitorCommand(opts),
                     (ConfigCommandOptions opts) => RunConfigCommand(opts),
@@ -366,71 +365,25 @@ namespace AttackSurfaceAnalyzer
                             Log.Information(Strings.Get("Begin"), Strings.Get("EnumeratingCollectRunIds"));
                             foreach (string run in CollectRuns)
                             {
-                                using (var cmd = new SqliteCommand(SQL_GET_RESULT_TYPES_SINGLE, DatabaseManager.Connection, DatabaseManager.Transaction))
+                                var col = DatabaseManager.db.GetCollection<CollectRun>("CollectRuns");
+
+                                var res = col.FindOne(x => x.run_id == run);
+                                Log.Information("RunId:{2} Timestamp:{0} AsaVersion:{1} ",
+                                    res.run_id,
+                                    res.timestamp,
+                                    res.version);
+
+                                var resultTypesAndCounts = DatabaseManager.GetResultTypesAndCounts(run);
+
+                                foreach (var kvPair in resultTypesAndCounts)
                                 {
-                                    cmd.Parameters.AddWithValue("@run_id", run);
-                                    using (var reader = cmd.ExecuteReader())
-                                    {
-                                        while (reader.Read())
-                                        {
-                                            Log.Information("RunId:{2} Timestamp:{0} AsaVersion:{1} ",
-                                                                            reader["timestamp"],
-                                                                            reader["version"],
-                                                                            reader["run_id"]);
-
-                                            var resultTypesAndCounts = DatabaseManager.GetResultTypesAndCounts(reader["run_id"].ToString());
-
-                                            foreach (var kvPair in resultTypesAndCounts)
-                                            {
-                                                Log.Information("{0} : {1}", kvPair.Key, kvPair.Value);
-                                            }
-                                        }
-                                    }
+                                    Log.Information("{0} : {1}", kvPair.Key, kvPair.Value);
                                 }
                             }
                         }
                         else
                         {
                             Log.Information(Strings.Get("NoCollectRuns"));
-                        }
-
-                        List<string> MonitorRuns = GetRuns("monitor");
-                        if (MonitorRuns.Count > 0)
-                        {
-                            Log.Information(Strings.Get("Begin"), Strings.Get("EnumeratingMonitorRunIds"));
-
-                            foreach (string monitorRun in MonitorRuns)
-                            {
-                                using (var cmd = new SqliteCommand(SQL_GET_RESULT_TYPES_SINGLE, DatabaseManager.Connection, DatabaseManager.Transaction))
-                                {
-                                    cmd.Parameters.AddWithValue("@run_id", monitorRun);
-                                    using (var reader = cmd.ExecuteReader())
-                                    {
-                                        while (reader.Read())
-                                        {
-                                            string output = $"{reader["timestamp"].ToString()} {reader["version"].ToString()} {reader["type"].ToString()} {reader["run_id"].ToString()}";
-                                            Log.Information(output);
-                                            output = string.Format("{0} {1} {2} {3} {4} {5} {6} {7} {8}",
-                                                                    (int.Parse(reader["file_system"].ToString()) != 0) ? "FILES" : "",
-                                                                    (int.Parse(reader["ports"].ToString()) != 0) ? "PORTS" : "",
-                                                                    (int.Parse(reader["users"].ToString()) != 0) ? "USERS" : "",
-                                                                    (int.Parse(reader["services"].ToString()) != 0) ? "SERVICES" : "",
-                                                                    (int.Parse(reader["certificates"].ToString()) != 0) ? "CERTIFICATES" : "",
-                                                                    (int.Parse(reader["registry"].ToString()) != 0) ? "REGISTRY" : "",
-                                                                    (int.Parse(reader["firewall"].ToString()) != 0) ? "FIREWALL" : "",
-                                                                    (int.Parse(reader["comobjects"].ToString()) != 0) ? "COM" : "",
-                                                                    (int.Parse(reader["eventlogs"].ToString()) != 0) ? "LOG" : "");
-
-                                            Log.Information(output);
-
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        else
-                        {
-                            Log.Information(Strings.Get("NoMonitorRuns"));
                         }
                     }
                 }
@@ -446,6 +399,8 @@ namespace AttackSurfaceAnalyzer
                 }
                 if (opts.TrimToLatest)
                 {
+                    
+
                     string GET_RUNS = "select run_id from runs order by timestamp desc;";
 
                     List<string> Runs = new List<string>();
@@ -766,218 +721,6 @@ namespace AttackSurfaceAnalyzer
 
         }
 
-        private static int RunMonitorCommand(MonitorCommandOptions opts)
-        {
-#if DEBUG
-            Logger.Setup(true, opts.Verbose);
-#else
-            Logger.Setup(opts.Debug, opts.Verbose);
-#endif
-            AdminOrQuit();
-
-            DatabaseManager.Setup(opts.DatabaseFilename);
-            AsaTelemetry.Setup();
-
-            Dictionary<string, string> StartEvent = new Dictionary<string, string>();
-            StartEvent.Add("Files", opts.EnableFileSystemMonitor.ToString(CultureInfo.InvariantCulture));
-            StartEvent.Add("Admin", AsaHelpers.IsAdmin().ToString(CultureInfo.InvariantCulture));
-            AsaTelemetry.TrackEvent("Begin monitoring", StartEvent);
-
-            CheckFirstRun();
-            DatabaseManager.VerifySchemaVersion();
-
-            Filter.LoadFilters(opts.FilterLocation);
-
-            opts.RunId = opts.RunId.Trim();
-
-            if (opts.RunId.Equals("Timestamp", StringComparison.InvariantCulture))
-            {
-                opts.RunId = DateTime.Now.ToString("o", CultureInfo.InvariantCulture);
-            }
-
-            if (opts.Overwrite)
-            {
-                DatabaseManager.DeleteRun(opts.RunId);
-            }
-            else
-            {
-                using var inner_cmd = new SqliteCommand(SQL_GET_RUN, DatabaseManager.Connection, DatabaseManager.Transaction);
-                inner_cmd.Parameters.AddWithValue("@run_id", opts.RunId);
-                using (var reader = inner_cmd.ExecuteReader())
-                {
-                    while (reader.Read())
-                    {
-                        Log.Error(Strings.Get("Err_RunIdAlreadyUsed"));
-                        return (int)GUI_ERROR.UNIQUE_ID;
-                    }
-                }
-
-            }
-
-            string INSERT_RUN = "insert into runs (run_id, file_system, ports, users, services, registry, certificates, firewall, comobjects, eventlogs, type, timestamp, version, platform) values (@run_id, @file_system, @ports, @users, @services, @registry, @certificates, @firewall, @comobjects, @eventlogs, @type, @timestamp, @version, @platform)";
-
-            using var cmd = new SqliteCommand(INSERT_RUN, DatabaseManager.Connection, DatabaseManager.Transaction);
-            cmd.Parameters.AddWithValue("@run_id", opts.RunId);
-            cmd.Parameters.AddWithValue("@file_system", opts.EnableFileSystemMonitor);
-            cmd.Parameters.AddWithValue("@ports", false);
-            cmd.Parameters.AddWithValue("@users", false);
-            cmd.Parameters.AddWithValue("@services", false);
-            cmd.Parameters.AddWithValue("@registry", false);
-            cmd.Parameters.AddWithValue("@certificates", false);
-            cmd.Parameters.AddWithValue("@firewall", false);
-            cmd.Parameters.AddWithValue("@comobjects", false);
-            cmd.Parameters.AddWithValue("@eventlogs", false);
-            cmd.Parameters.AddWithValue("@type", "monitor");
-            cmd.Parameters.AddWithValue("@timestamp", DateTime.Now.ToString("o", CultureInfo.InvariantCulture));
-            cmd.Parameters.AddWithValue("@version", AsaHelpers.GetVersionString());
-            cmd.Parameters.AddWithValue("@platform", AsaHelpers.GetPlatformString());
-            try
-            {
-                cmd.ExecuteNonQuery();
-                DatabaseManager.Commit();
-            }
-            catch (SqliteException e)
-            {
-                Log.Warning(e.StackTrace);
-                Log.Warning(e.Message);
-                AsaTelemetry.TrackTrace(Microsoft.ApplicationInsights.DataContracts.SeverityLevel.Error, e);
-            }
-            int returnValue = 0;
-
-            if (opts.EnableFileSystemMonitor)
-            {
-                List<String> directories = new List<string>();
-
-                if (opts.MonitoredDirectories != null)
-                {
-                    var parts = opts.MonitoredDirectories.Split(',');
-                    foreach (String part in parts)
-                    {
-                        directories.Add(part);
-                    }
-                }
-                else
-                {
-                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                    {
-                        directories.Add("/");
-                    }
-                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-                    {
-                        directories.Add("C:\\");
-                    }
-                    if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                    {
-                        directories.Add("/");
-                    }
-                }
-
-                List<NotifyFilters> filterOptions = new List<NotifyFilters>
-                {
-                    NotifyFilters.Attributes, NotifyFilters.CreationTime, NotifyFilters.DirectoryName, NotifyFilters.FileName, NotifyFilters.LastAccess, NotifyFilters.LastWrite, NotifyFilters.Security, NotifyFilters.Size
-                };
-
-                foreach (String dir in directories)
-                {
-                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                    {
-                        var newMon = new FileSystemMonitor(opts.RunId, dir, false);
-                        monitors.Add(newMon);
-                    }
-                    else
-                    {
-                        foreach (NotifyFilters filter in filterOptions)
-                        {
-                            Log.Information("Adding Path {0} Filter Type {1}", dir, filter.ToString());
-                            var newMon = new FileSystemMonitor(opts.RunId, dir, false, filter);
-                            monitors.Add(newMon);
-                        }
-                    }
-                }
-            }
-
-            //if (opts.EnableRegistryMonitor)
-            //{
-            //var monitor = new RegistryMonitor();
-            //monitors.Add(monitor);
-            //}
-
-            if (monitors.Count == 0)
-            {
-                Log.Warning(Strings.Get("Err_NoMonitors"));
-                returnValue = 1;
-            }
-
-            var exitEvent = new ManualResetEvent(false);
-
-            // If duration is set, we use the secondary timer.
-            if (opts.Duration > 0)
-            {
-                Log.Information("{0} {1} {2}.", Strings.Get("MonitorStartedFor"), opts.Duration, Strings.Get("Minutes"));
-                var aTimer = new System.Timers.Timer
-                {
-                    Interval = opts.Duration * 60 * 1000,
-                    AutoReset = false,
-                };
-                aTimer.Elapsed += (source, e) => { exitEvent.Set(); };
-
-                // Start the timer
-                aTimer.Enabled = true;
-            }
-
-            foreach (FileSystemMonitor c in monitors)
-            {
-
-                Log.Information(Strings.Get("Begin"), c.GetType().Name);
-
-                try
-                {
-                    c.StartRun();
-                }
-                catch (SqliteException ex)
-                {
-                    Log.Error(ex, Strings.Get("Err_CollectingFrom"), c.GetType().Name, ex.Message, ex.StackTrace);
-                    returnValue = 1;
-                }
-            }
-
-            // Set up the event to capture CTRL+C
-            Console.CancelKeyPress += (sender, eventArgs) =>
-            {
-                eventArgs.Cancel = true;
-                exitEvent.Set();
-            };
-
-            Console.Write(Strings.Get("MonitoringPressC"));
-
-            // Write a spinner and wait until CTRL+C
-            WriteSpinner(exitEvent);
-            Log.Information("");
-
-            foreach (var c in monitors)
-            {
-                Log.Information(Strings.Get("End"), c.GetType().Name);
-
-                try
-                {
-                    c.StopRun();
-                    if (c is FileSystemMonitor)
-                    {
-                        ((FileSystemMonitor)c).Dispose();
-                    }
-                }
-                catch (SqliteException ex)
-                {
-                    Log.Error(ex, " {0}: {1}", c.GetType().Name, ex.Message, Strings.Get("Err_Stopping"));
-                    returnValue = 1;
-                }
-            }
-
-            DatabaseManager.Commit();
-
-            return returnValue;
-        }
-
         public static List<BaseCollector> GetCollectors()
         {
             return collectors;
@@ -1089,65 +832,6 @@ namespace AttackSurfaceAnalyzer
             DatabaseManager.Commit();
             AsaTelemetry.TrackEvent("End Command", EndEvent);
             return results;
-        }
-
-        public static GUI_ERROR RunGuiMonitorCommand(MonitorCommandOptions opts)
-        {
-            if (opts is null)
-            {
-                return GUI_ERROR.NO_COLLECTORS;
-            }
-            if (opts.EnableFileSystemMonitor)
-            {
-                List<String> directories = new List<string>();
-
-                var parts = opts.MonitoredDirectories.Split(',');
-                foreach (String part in parts)
-                {
-                    directories.Add(part);
-                }
-
-
-                foreach (String dir in directories)
-                {
-                    try
-                    {
-                        FileSystemMonitor newMon = new FileSystemMonitor(opts.RunId, dir, opts.InterrogateChanges);
-                        monitors.Add(newMon);
-                    }
-                    catch (ArgumentException)
-                    {
-                        Log.Warning("{1}: {0}", dir, Strings.Get("InvalidPath"));
-                        return GUI_ERROR.INVALID_PATH;
-                    }
-                }
-            }
-
-            if (monitors.Count == 0)
-            {
-                Log.Warning(Strings.Get("Err_NoMonitors"));
-            }
-
-            foreach (var c in monitors)
-            {
-                c.StartRun();
-            }
-
-            return GUI_ERROR.NONE;
-        }
-
-        public static int StopMonitors()
-        {
-            foreach (var c in monitors)
-            {
-                Log.Information(Strings.Get("End"), c.GetType().Name);
-
-                c.StopRun();
-            }
-
-            DatabaseManager.Commit();
-
-            return 0;
         }
 
         public static void AdminOrQuit()

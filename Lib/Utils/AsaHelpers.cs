@@ -169,5 +169,22 @@ namespace AttackSurfaceAnalyzer.Utils
                    o.GetType().IsGenericType &&
                    o.GetType().GetGenericTypeDefinition().IsAssignableFrom(typeof(Dictionary<,>));
         }
+
+        public static PLATFORM GetPlatform()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                return PLATFORM.WINDOWS;
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                return PLATFORM.LINUX;
+            }
+            else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                return PLATFORM.MACOS;
+            }
+            return PLATFORM.UNKNOWN;
+        }
     }
 }

@@ -26,20 +26,22 @@ namespace AttackSurfaceAnalyzer.Collectors
             this.GatherVerboseLogs = GatherVerboseLogs;
         }
 
-        public override void ExecuteInternal()
+        public override IEnumerable<CollectObject> ExecuteInternal()
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                ExecuteWindows();
+                return ExecuteWindows();
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
-                ExecuteLinux();
+                return ExecuteLinux();
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                ExecuteMacOs();
+                return ExecuteMacOs();
             }
+
+            return Enumerable.Empty<CollectObject>();
         }
 
 
@@ -47,9 +49,10 @@ namespace AttackSurfaceAnalyzer.Collectors
         /// Collect event logs on Windows using System.Diagnostics.EventLog
         /// </summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Official documentation for this functionality does not specify what exceptions it throws. https://docs.microsoft.com/en-us/dotnet/api/system.diagnostics.eventlogentrycollection?view=netcore-3.0")]
-        public void ExecuteWindows()
+        public IEnumerable<CollectObject> ExecuteWindows()
         {
             EventLog[] logs = EventLog.GetEventLogs();
+            var results = new List<CollectObject>();
             foreach (var log in logs)
             {
                 try
@@ -77,7 +80,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                                 Event = $"{entry.TimeGenerated.ToString("o", CultureInfo.InvariantCulture)} {entry.EntryType.ToString()} {entry.Message}"
                             };
                             obj.Data.Add(entry.Message);
-                            DatabaseManager.Write(obj, RunId);
+                            results.Add(obj);
                         }
                     }
                 }
@@ -86,14 +89,17 @@ namespace AttackSurfaceAnalyzer.Collectors
                     Log.Debug(e, "Error parsing log {0}", log.Source);
                 }
             }
+
+            foreach (var result in results) { yield return result; }
         }
 
         /// <summary>
         /// Parses /var/log/auth.log and /var/log/syslog (no way to distinguish severity)
         /// </summary>
-        public void ExecuteLinux()
+        public IEnumerable<CollectObject> ExecuteLinux()
         {
             Regex LogHeader = new Regex("^([A-Z][a-z][a-z][0-9:\\s]*)?[\\s].*?[\\s](.*?): (.*)");
+            var results = new List<CollectObject>();
 
             try
             {
@@ -112,7 +118,8 @@ namespace AttackSurfaceAnalyzer.Collectors
                             Source = "/var/log/auth.log",
                             Process = LogHeader.Matches(entry).Single().Groups[2].Captures[0].Value,
                         };
-                        DatabaseManager.Write(obj, RunId);
+
+                        results.Add(obj);
                     }
                     // New log entries start with a timestamp like so:
                     // Sep  7 02:16:16 testbed systemd[1]: Reloading
@@ -148,7 +155,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                             Source = "/var/log/syslog",
                             Process = LogHeader.Matches(entry).Single().Groups[1].Captures[0].Value,
                         };
-                        DatabaseManager.Write(obj, RunId);
+                        results.Add(obj);
                     }
                 }
             }
@@ -165,12 +172,14 @@ namespace AttackSurfaceAnalyzer.Collectors
             {
                 Log.Debug("Failed to parse /var/log/syslog");
             }
+
+            foreach (var result in results) { yield return result; }
         }
 
         /// <summary>
         /// Collect event logs on macOS using the 'log' utility
         /// </summary>
-        public void ExecuteMacOs()
+        public IEnumerable<CollectObject> ExecuteMacOs()
         {
 
             var outputPath = Path.Combine(Directory.GetCurrentDirectory(), "events");
@@ -202,7 +211,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                             obj.Data.AddRange(data);
                         }
 
-                        DatabaseManager.Write(obj, RunId);
+                        yield return obj;
                     }
                     previousLine = line;
                     data = new List<string>();
@@ -229,9 +238,8 @@ namespace AttackSurfaceAnalyzer.Collectors
                 {
                     obj.Data.AddRange(data);
                 }
-                DatabaseManager.Write(obj, RunId);
+                yield return obj;
             }
-            DatabaseManager.Commit();
         }
 
         public override bool CanRunOnPlatform()

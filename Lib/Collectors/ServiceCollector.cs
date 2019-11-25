@@ -34,8 +34,10 @@ namespace AttackSurfaceAnalyzer.Collectors
         /// <summary>
         /// Uses ServiceController.
         /// </summary>
-        public void ExecuteWindows()
+        public IEnumerable<CollectObject> ExecuteWindows()
         {
+            var results = new List<CollectObject>();
+
             try
             {
                 System.Management.SelectQuery sQuery = new System.Management.SelectQuery("select * from Win32_Service"); // where name = '{0}'", "MCShield.exe"));
@@ -98,7 +100,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                         if (service["WaitHint"] != null)
                             obj.WaitHint = uint.Parse(service["WaitHint"].ToString(), CultureInfo.InvariantCulture);
 
-                        DatabaseManager.Write(obj, this.RunId);
+                        results.Add(obj);
                     }
                 }
             }
@@ -108,13 +110,16 @@ namespace AttackSurfaceAnalyzer.Collectors
             {
                 Log.Warning(Strings.Get("CollectorNotSupportedOnPlatform"), this.GetType().ToString());
             }
+
+            foreach(var result in results) { yield return result; }
         }
 
         /// <summary>
         /// Uses systemctl (relies on systemd) and also checks /etc/init.d
         /// </summary>
-        public void ExecuteLinux()
+        public IEnumerable<CollectObject> ExecuteLinux()
         {
+            var results = new List<CollectObject>();
             try
             {
                 var result = ExternalCommandRunner.RunExternalCommand("systemctl", "list-units --type service");
@@ -135,7 +140,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                             State = _fields[3],
                         };
 
-                        DatabaseManager.Write(obj, this.RunId);
+                        results.Add(obj);
                     }
                 }
             }
@@ -163,7 +168,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                         Name = serviceName,
                     };
 
-                    DatabaseManager.Write(obj, this.RunId);
+                    results.Add(obj);
                 }
             }
             catch (ExternalException)
@@ -171,6 +176,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                 Log.Error("Error executing {0}", "ls /etc/init.d/ -l");
             }
 
+            foreach(var result in results) { yield return result; }
 
             // CentOS
             // chkconfig --list
@@ -183,8 +189,9 @@ namespace AttackSurfaceAnalyzer.Collectors
         /// <summary>
         /// Uses launchctl
         /// </summary>
-        public void ExecuteMacOs()
+        public IEnumerable<CollectObject> ExecuteMacOs()
         {
+            var results = new List<CollectObject>();
             // Get the user processes
             // run "launchtl dumpstate" for the super detailed view
             // However, dumpstate is difficult to parse
@@ -212,7 +219,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                     };
                     if (!outDict.ContainsKey(obj.Identity))
                     {
-                        DatabaseManager.Write(obj, this.RunId);
+                        results.Add(obj);
                         outDict.Add(obj.Identity, obj);
                     }
                 }
@@ -247,7 +254,7 @@ namespace AttackSurfaceAnalyzer.Collectors
 
                     if (!outDict.ContainsKey(obj.Identity))
                     {
-                        DatabaseManager.Write(obj, this.RunId);
+                        results.Add(obj);
                         outDict.Add(obj.Identity, obj);
                     }
                 }
@@ -256,25 +263,28 @@ namespace AttackSurfaceAnalyzer.Collectors
             {
                 Log.Error("Error executing {0}", "sudo launchctl list");
             }
+            foreach(var result in results) { yield return result; }
         }
 
         /// <summary>
         /// Executes the ServiceCollector.
         /// </summary>
-        public override void ExecuteInternal()
+        public override IEnumerable<CollectObject> ExecuteInternal()
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                ExecuteWindows();
+                return ExecuteWindows();
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                ExecuteMacOs();
+                return ExecuteMacOs();
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
-                ExecuteLinux();
+                return ExecuteLinux();
             }
+
+            return Enumerable.Empty<CollectObject>();
         }
     }
 }

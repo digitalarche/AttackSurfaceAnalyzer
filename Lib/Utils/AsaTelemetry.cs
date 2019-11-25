@@ -1,5 +1,6 @@
 ﻿// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
+using AttackSurfaceAnalyzer.Objects;
 using Microsoft.ApplicationInsights;
 using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.ApplicationInsights.Extensibility;
@@ -32,12 +33,12 @@ namespace AttackSurfaceAnalyzer.Utils
             {
                 using var config = TelemetryConfiguration.CreateDefault();
 
-                var col = DatabaseManager.db.GetCollection<KeyValuePair<string,string>>("Settings");
+                var col = DatabaseManager.db.GetCollection<Setting>("Settings");
 
-                var res = col.FindOne(x => x.Key.Equals("TelemetryOptOut"));
+                var res = col.FindOne(x => x.Name.Equals("TelemetryOptOut"));
 
                 config.InstrumentationKey = INSTRUMENTATION_KEY;
-                config.DisableTelemetry = res.Key.ToUpper().Equals("TRUE");
+                config.DisableTelemetry = res.Value.ToString().ToUpper().Equals("TRUE");
                 Client = new TelemetryClient(config);
                 Client.Context.Component.Version = AsaHelpers.GetVersionString();
                 // Force some values to static values to prevent gathering unneeded data

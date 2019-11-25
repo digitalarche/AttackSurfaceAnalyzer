@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Net.NetworkInformation;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
@@ -47,20 +48,22 @@ namespace AttackSurfaceAnalyzer.Collectors
             return RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
         }
 
-        public override void ExecuteInternal()
+        public override IEnumerable<CollectObject> ExecuteInternal()
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                ExecuteWindows();
+                return ExecuteWindows();
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
-                ExecuteLinux();
+                return ExecuteLinux();
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                ExecuteOsX();
+                return ExecuteOsX();
             }
+
+            return Enumerable.Empty<CollectObject>();
         }
 
         /// <summary>
@@ -68,7 +71,7 @@ namespace AttackSurfaceAnalyzer.Collectors
         /// APIs to gather active TCP and UDP listeners and writes them 
         /// to the database.
         /// </summary>
-        public void ExecuteWindows()
+        public IEnumerable<CollectObject> ExecuteWindows()
         {
             var properties = IPGlobalProperties.GetIPGlobalProperties();
 
@@ -86,7 +89,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                     obj.ProcessName = p.ProcessName;
                 }
 
-                DatabaseManager.Write(obj, this.RunId);
+                yield return obj;
             }
 
             foreach (var endpoint in properties.GetActiveUdpListeners())
@@ -103,7 +106,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                     obj.ProcessName = p.ProcessName;
                 }
 
-                DatabaseManager.Write(obj, this.RunId);
+                yield return obj;
             }
         }
 
@@ -111,8 +114,9 @@ namespace AttackSurfaceAnalyzer.Collectors
         /// Executes the OpenPortCollector on Linux. Calls out to the `ss`
         /// command and parses the output, sending the output to the database.
         /// </summary>
-        private void ExecuteLinux()
+        private IEnumerable<CollectObject> ExecuteLinux()
         {
+            var results = new List<CollectObject>();
             try
             {
                 var result = ExternalCommandRunner.RunExternalCommand("ss", "-ln");
@@ -146,7 +150,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                             Port = port,
                             Type = parts[0]
                         };
-                        DatabaseManager.Write(obj, this.RunId);
+                        results.Add(obj);
                     }
                 }
             }
@@ -156,6 +160,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                 Log.Debug(e, "");
             }
 
+            foreach (var result in results) { yield return result; }
         }
 
         /// <summary>
@@ -163,50 +168,52 @@ namespace AttackSurfaceAnalyzer.Collectors
         /// command and parses the output, sending the output to the database.
         /// The 'ss' command used on Linux isn't available on OS X.
         /// </summary>
-        private void ExecuteOsX()
+        private IEnumerable<CollectObject> ExecuteOsX()
         {
+            string result = string.Empty;
+
             try
             {
-                var result = ExternalCommandRunner.RunExternalCommand("sudo", "lsof -Pn -i4 -i6");
-
-                foreach (var _line in result.Split('\n'))
-                {
-                    var line = _line.ToUpperInvariant();
-                    if (!line.Contains("LISTEN"))
-                    {
-                        continue; // Skip any lines which aren't open listeners
-                    }
-                    var parts = Regex.Split(line, @"\s+");
-                    if (parts.Length <= 9)
-                    {
-                        continue;       // Not long enough
-                    }
-                    string address = null;
-                    string port = null;
-
-                    var addressMatches = Regex.Match(parts[8], @"^(.*):(\d+)$");
-                    if (addressMatches.Success)
-                    {
-                        address = addressMatches.Groups[1].ToString();
-                        port = addressMatches.Groups[2].ToString();
-
-                        var obj = new OpenPortObject()
-                        {
-                            // Assuming family means IPv6 vs IPv4
-                            Family = parts[4],
-                            Address = address,
-                            Port = port,
-                            Type = parts[7],
-                            ProcessName = parts[0]
-                        };
-
-                        DatabaseManager.Write(obj, this.RunId);
-                    }
-                }
+                result = ExternalCommandRunner.RunExternalCommand("sudo", "lsof -Pn -i4 -i6");
             }
             catch (Exception e)
             {
                 Log.Error(e, Strings.Get("Err_Lsof"));
+            }
+
+            foreach (var _line in result.Split('\n'))
+            {
+                var line = _line.ToUpperInvariant();
+                if (!line.Contains("LISTEN"))
+                {
+                    continue; // Skip any lines which aren't open listeners
+                }
+                var parts = Regex.Split(line, @"\s+");
+                if (parts.Length <= 9)
+                {
+                    continue;       // Not long enough
+                }
+                string address = null;
+                string port = null;
+
+                var addressMatches = Regex.Match(parts[8], @"^(.*):(\d+)$");
+                if (addressMatches.Success)
+                {
+                    address = addressMatches.Groups[1].ToString();
+                    port = addressMatches.Groups[2].ToString();
+
+                    var obj = new OpenPortObject()
+                    {
+                        // Assuming family means IPv6 vs IPv4
+                        Family = parts[4],
+                        Address = address,
+                        Port = port,
+                        Type = parts[7],
+                        ProcessName = parts[0]
+                    };
+
+                    yield return obj;
+                }
             }
         }
     }

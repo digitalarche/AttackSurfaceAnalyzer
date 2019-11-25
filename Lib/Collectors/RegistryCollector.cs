@@ -6,6 +6,7 @@ using Microsoft.Win32;
 using Newtonsoft.Json;
 using Serilog;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
@@ -59,33 +60,40 @@ namespace AttackSurfaceAnalyzer.Collectors
             return RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
         }
 
-        public override void ExecuteInternal()
+        public override IEnumerable<CollectObject> ExecuteInternal()
         {
-            Parallel.ForEach(Hives,
-                (hive =>
+            foreach( var hive in Hives)
+            {
+                Log.Debug("Starting " + hive.ToString());
+                if (!Filter.IsFiltered(AsaHelpers.GetPlatformString(), "Scan", "Registry", "Hive", "Include", hive.ToString()) && Filter.IsFiltered(AsaHelpers.GetPlatformString(), "Scan", "Registry", "Hive", "Exclude", hive.ToString(), out Regex Capturer))
                 {
-                    Log.Debug("Starting " + hive.ToString());
-                    if (!Filter.IsFiltered(AsaHelpers.GetPlatformString(), "Scan", "Registry", "Hive", "Include", hive.ToString()) && Filter.IsFiltered(AsaHelpers.GetPlatformString(), "Scan", "Registry", "Hive", "Exclude", hive.ToString(), out Regex Capturer))
-                    {
-                        Log.Debug("{0} '{1}' {2} '{3}'.", Strings.Get("ExcludingHive"), hive.ToString(), Strings.Get("DueToFilter"), Capturer.ToString());
-                        return;
-                    }
+                    Log.Debug("{0} '{1}' {2} '{3}'.", Strings.Get("ExcludingHive"), hive.ToString(), Strings.Get("DueToFilter"), Capturer.ToString());
+                    continue;
+                }
 
-                    Filter.IsFiltered(AsaHelpers.GetPlatformString(), "Scan", "Registry", "Key", "Exclude", hive.ToString());
-                    var registryInfoEnumerable = RegistryWalker.WalkHive(hive);
-                    Parallel.ForEach(registryInfoEnumerable,
-                        (registryObject =>
+                Filter.IsFiltered(AsaHelpers.GetPlatformString(), "Scan", "Registry", "Key", "Exclude", hive.ToString());
+                var registryInfoEnumerable = RegistryWalker.WalkHive(hive);
+                var bag = new ConcurrentBag<CollectObject>();
+
+                Parallel.ForEach(registryInfoEnumerable,
+                    (registryObject =>
+                    {
+                        try
                         {
-                            try
-                            {
-                                DatabaseManager.Write(registryObject);
-                            }
-                            catch (InvalidOperationException e)
-                            {
-                                Log.Debug(e, JsonConvert.SerializeObject(registryObject) + " invalid op exept");
-                            }
-                        }));
-                }));
+                            bag.Add(registryObject);
+                        }
+                        catch (InvalidOperationException e)
+                        {
+                            Log.Debug(e, JsonConvert.SerializeObject(registryObject) + " invalid op exept");
+                        }
+                    }));
+                foreach (var bagel in bag)
+                {
+                    yield return bagel;
+                }
+            }
+
+ 
         }
     }
 }

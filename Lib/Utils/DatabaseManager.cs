@@ -35,6 +35,17 @@ namespace AttackSurfaceAnalyzer.Utils
             }
             db = new LiteDatabase(filename);
             Filename = filename;
+
+            var col = db.GetCollection<Setting>("Settings");
+
+            var res = col.Count(x => x.Name.Equals("TelemetryOptOut"));
+
+            if (res == 0)
+            {
+                col.Insert(new Setting() { Name = "TelemetryOptOut", Value = "False" });
+
+            }
+
             return true;
         }
 
@@ -55,14 +66,14 @@ namespace AttackSurfaceAnalyzer.Utils
 
         public static List<CollectObject> GetResultsByRunid(string runid)
         {
-            var col = db.GetCollection<CollectObject>("CollectResults");
+            var col = db.GetCollection<CollectObject>("CollectObjects");
 
             return col.Find(x => x.RunId.Equals(runid)).ToList();
         }
 
         public static void InsertAnalyzed(CompareResult objIn)
         {
-            var col = db.GetCollection<CompareResult>("AnalysisResults");
+            var col = db.GetCollection<CompareResult>("CompareResults");
             col.Insert(objIn);
         }
 
@@ -77,7 +88,7 @@ namespace AttackSurfaceAnalyzer.Utils
 
             if (type.Equals("collect"))
             {
-                var col = db.GetCollection<CollectObject>("CollectResults");
+                var col = db.GetCollection<CollectObject>("CollectObjects");
 
                 var results = col.Find(Query.All(Query.Descending), limit: numberOfIds);
 
@@ -91,11 +102,27 @@ namespace AttackSurfaceAnalyzer.Utils
 
         }
 
+        public static List<string> GetRuns()
+        {
+            List<string> output = new List<string>();
+
+            var col = db.GetCollection<CollectObject>("CollectObjects");
+
+            var results = col.Find(Query.All(Query.Descending));
+
+            foreach (var collectObject in results)
+            {
+                output.Add(collectObject.RunId);
+            }
+
+            return output;
+        }
+
         public static Dictionary<RESULT_TYPE, int> GetResultTypesAndCounts(string runId)
         {
             var types = GetResultTypes(runId);
             var output = new Dictionary<RESULT_TYPE, int>();
-            var col = db.GetCollection<CollectObject>("CollectResults");
+            var col = db.GetCollection<CollectObject>("CollectObjects");
 
             foreach (var type in types)
             {
@@ -142,9 +169,14 @@ namespace AttackSurfaceAnalyzer.Utils
 
         public static void Write(CollectObject objIn)
         {
-            var col = db.GetCollection<CollectEntry>("CollectResults");
+            var col = db.GetCollection<CollectObject>("CollectObjects");
+            col.Insert(objIn);
+        }
 
-            col.Insert(new CollectEntry() { Collect = objIn });
+        public static void Write(IEnumerable<CollectObject> objsIn)
+        {
+            var col = db.GetCollection<CollectObject>("CollectObjects");
+            col.InsertBulk(objsIn);
         }
 
         public static List<CollectObject> GetMissingFromFirst(string firstRunId, string secondRunId)
@@ -191,11 +223,11 @@ namespace AttackSurfaceAnalyzer.Utils
 
         public static void DeleteRun(string runid)
         {
-            var col = db.GetCollection<CollectObject>("CollectResult");
-            col.Delete(x => x.RunId.Equals(runid));
+            var col = db.GetCollection<CollectEntry>("CollectEntries");
+            col.Delete(x => x.Collect.RunId.Equals(runid));
 
-            col = db.GetCollection<CollectObject>("CollectRuns");
-            col.Delete(x => x.RunId.Equals(runid));
+            var col2 = db.GetCollection<CollectRun>("CollectRuns");
+            col2.Delete(x => x.run_id.Equals(runid));
         }
 
     }

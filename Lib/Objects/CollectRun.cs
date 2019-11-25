@@ -7,6 +7,7 @@ namespace AttackSurfaceAnalyzer.Objects
 {
     public class CollectRun
     {
+        public int Id { get; set; }
         public string run_id { get; set; }
         public bool file_system { get; set; }
         public bool ports { get; set; }

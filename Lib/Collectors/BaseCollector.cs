@@ -1,5 +1,6 @@
 ﻿// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
+using AttackSurfaceAnalyzer.Objects;
 using AttackSurfaceAnalyzer.Types;
 using AttackSurfaceAnalyzer.Utils;
 using Serilog;
@@ -27,17 +28,16 @@ namespace AttackSurfaceAnalyzer.Collectors
             if (!CanRunOnPlatform())
             {
                 Log.Warning(string.Format(CultureInfo.InvariantCulture, Strings.Get("Err_PlatIncompat"), GetType().ToString()));
-                return;
             }
             Start();
 
-            ExecuteInternal();
+            DatabaseManager.Write(ExecuteInternal());
 
             Stop();
         }
         public abstract bool CanRunOnPlatform();
 
-        public abstract void ExecuteInternal();
+        public abstract IEnumerable<CollectObject> ExecuteInternal();
 
         private Stopwatch watch;
 

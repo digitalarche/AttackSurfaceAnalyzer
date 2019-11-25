@@ -41,13 +41,6 @@ namespace AttackSurfaceAnalyzer.Gui.Controllers
             return View();
         }
 
-        public ActionResult WriteMonitorJson(string RunId, int ResultType, string OutputPath)
-        {
-            AttackSurfaceAnalyzerClient.WriteMonitorJson(RunId, ResultType, OutputPath);
-
-            return Json(true);
-        }
-
         public ActionResult WriteScanJson(int ResultType, string BaseId, string CompareId, bool ExportAll, string OutputPath)
         {
             AttackSurfaceAnalyzerClient.WriteScanJson(ResultType, BaseId, CompareId, ExportAll, OutputPath);
@@ -263,8 +256,7 @@ namespace AttackSurfaceAnalyzer.Gui.Controllers
                 SelectedBaseRunId = "-1",
                 SelectedCompareRunId = "-1",
                 Runs = GetRunModels(),
-                SelectedMonitorRunId = "-1",
-                MonitorRuns = GetMonitorRunModels(),
+                SelectedMonitorRunId = "-1"
             };
 
             return View(model);
@@ -276,23 +268,10 @@ namespace AttackSurfaceAnalyzer.Gui.Controllers
             return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
         }
 
-        private static IEnumerable<DataRunModel> GetMonitorRunModels()
-        {
-            List<string> Runs = AttackSurfaceAnalyzerClient.GetRuns("monitor");
-
-            List<DataRunModel> runModels = new List<DataRunModel>();
-
-            for (int i = 0; i < Runs.Count; i++)
-            {
-                runModels.Add(new DataRunModel { Key = Runs[i], Text = Runs[i] });
-            }
-
-            return runModels;
-        }
-
+        
         private IEnumerable<DataRunModel> GetRunModels()
         {
-            List<string> Runs = AttackSurfaceAnalyzerClient.GetRuns("collect");
+            List<string> Runs = DatabaseManager.GetRuns();
 
             List<DataRunModel> runModels = new List<DataRunModel>();
 

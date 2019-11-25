@@ -250,8 +250,6 @@ namespace AttackSurfaceAnalyzer.Collectors
                         Dictionary<string, string> ExceptionEvent = new Dictionary<string, string>();
                         ExceptionEvent.Add("Exception Type", e.GetType().ToString());
                         AsaTelemetry.TrackEvent("CompareException", ExceptionEvent);
-
-
                     }
                 }
 

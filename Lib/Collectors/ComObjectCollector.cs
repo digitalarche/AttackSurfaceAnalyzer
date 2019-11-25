@@ -37,13 +37,14 @@ namespace AttackSurfaceAnalyzer.Collectors
         /// Execute the Com Collector.  We collect the list of Com Objects registered in the registry
         /// and then examine each binary on the disk they point to.
         /// </summary>
-        public override void ExecuteInternal()
+        public override IEnumerable<CollectObject> ExecuteInternal()
         {
+            List<CollectObject> results = new List<CollectObject>();
             try
             {
                 // Parse system Com Objects
                 using var SearchKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Default).OpenSubKey("SOFTWARE\\Classes\\CLSID");
-                ParseComObjects(SearchKey);
+                results.Concat(ParseComObjects(SearchKey));
             }
             catch(Exception e) when (
                 e is ArgumentException
@@ -53,6 +54,12 @@ namespace AttackSurfaceAnalyzer.Collectors
 
             }
 
+            foreach (var result in results)
+            {
+                yield return result;
+            }
+
+            results.Clear();
 
             try
             {
@@ -64,7 +71,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                     if (subkeyName.EndsWith("Classes"))
                     {
                         using var ComKey = SearchKey.OpenSubKey(subkeyName).OpenSubKey("CLSID");
-                        ParseComObjects(ComKey);
+                        results.Concat(ParseComObjects(ComKey));
                     }
                 }
             }
@@ -75,12 +82,17 @@ namespace AttackSurfaceAnalyzer.Collectors
             {
 
             }
+
+            foreach (var result in results)
+            {
+                yield return result;
+            }
         }
 
-        public void ParseComObjects(RegistryKey SearchKey)
+        public static List<CollectObject> ParseComObjects(RegistryKey SearchKey)
         {
-            if (SearchKey == null) { return; }
-            List<ComObject> comObjects = new List<ComObject>();
+            if (SearchKey == null) { return new List<CollectObject>(); }
+            List<CollectObject> comObjects = new List<CollectObject>();
             try
             {
                 Parallel.ForEach(SearchKey.GetSubKeyNames(), (SubKeyName) =>
@@ -166,10 +178,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                 Log.Debug($"Failing parsing com objects {SearchKey.Name} {e.GetType().ToString()} {e.Message}");
             }
 
-            foreach (var comObject in comObjects)
-            {
-                DatabaseManager.Write(comObject, RunId);
-            }
+            return comObjects;
         }
     }
 }

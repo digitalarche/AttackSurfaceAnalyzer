@@ -33,8 +33,9 @@ namespace AttackSurfaceAnalyzer.Collectors
         /// Uses a library to access the Windows Firewall.
         /// </summary>
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "The specific exceptions thrown by this library are not documented.")]
-        public void ExecuteWindows()
+        public IEnumerable<CollectObject> ExecuteWindows()
         {
+            var results = new List<CollectObject>();
             try
             {
                 foreach (IFirewallRule rule in FirewallManager.Instance.Rules.ToArray())
@@ -59,7 +60,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                         obj.LocalPorts.AddRange(rule.LocalPorts.ToList().ConvertAll(port => port.ToString(CultureInfo.InvariantCulture)));
                         obj.RemoteAddresses.AddRange(rule.RemoteAddresses.ToList().ConvertAll(address => address.ToString()));
                         obj.RemotePorts.AddRange(rule.RemotePorts.ToList().ConvertAll(port => port.ToString(CultureInfo.InvariantCulture)));
-                        DatabaseManager.Write(obj, RunId);
+                        results.Add(obj);
                     }
                     catch (Exception e)
                     {
@@ -76,12 +77,14 @@ namespace AttackSurfaceAnalyzer.Collectors
             {
                 Log.Warning(Strings.Get("CollectorNotSupportedOnPlatform"), this.GetType().ToString());
             }
+
+            foreach(var result in results) { yield return result; }
         }
 
         /// <summary>
         /// Dumps from iptables.
         /// </summary>
-        public void ExecuteLinux()
+        public IEnumerable<CollectObject> ExecuteLinux()
         {
             var result = ExternalCommandRunner.RunExternalCommand("iptables", "-S");
 
@@ -107,7 +110,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                         obj.Direction = chainName.Equals("INPUT") ? FirewallDirection.Inbound : FirewallDirection.Outbound;
                     }
 
-                    DatabaseManager.Write(obj, RunId);
+                    yield return obj;
                 }
                 else if (line.StartsWith("-A"))
                 {
@@ -149,7 +152,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                         obj.Direction = chainName.Equals("INPUT") ? FirewallDirection.Inbound : FirewallDirection.Outbound;
                     }
 
-                    DatabaseManager.Write(obj, RunId);
+                    yield return obj;
                 }
             }
         }
@@ -157,7 +160,7 @@ namespace AttackSurfaceAnalyzer.Collectors
         /// <summary>
         /// Talks to socketfilterfw
         /// </summary>
-        public void ExecuteMacOs()
+        public IEnumerable<CollectObject> ExecuteMacOs()
         {
             // Example output: "Firewall is enabled. (State = 1)"
             var result = ExternalCommandRunner.RunExternalCommand("/usr/libexec/ApplicationFirewall/socketfilterfw", "--getglobalstate");
@@ -171,7 +174,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                 Name = "Firewall Enabled",
                 Scope = FirewallScope.All
             };
-            DatabaseManager.Write(obj, RunId);
+            yield return obj;
 
             // Example output: "Stealth mode disabled"
             result = ExternalCommandRunner.RunExternalCommand("/usr/libexec/ApplicationFirewall/socketfilterfw", "--getglobalstate");
@@ -184,7 +187,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                 Name = "Stealth Mode",
                 Scope = FirewallScope.All
             };
-            DatabaseManager.Write(obj, RunId);
+            yield return obj;
 
             /* Example Output:
              * Automatically allow signed built-in software ENABLED
@@ -199,7 +202,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                 Name = "Allow signed built-in software",
                 Scope = FirewallScope.All
             };
-            DatabaseManager.Write(obj, RunId);
+            yield return obj;
 
             obj = new FirewallObject()
             {
@@ -210,7 +213,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                 Name = "Allow downloaded signed software",
                 Scope = FirewallScope.All
             };
-            DatabaseManager.Write(obj, RunId);
+            yield return obj;
 
             /* Example Output:
 ALF: total number of apps = 2 
@@ -243,26 +246,28 @@ ALF: total number of apps = 2
                             Name = appName,
                             Scope = FirewallScope.All
                         };
-                        DatabaseManager.Write(obj, RunId);
+                        yield return obj;
                     }
                 }
             }
         }
 
-        public override void ExecuteInternal()
+        public override IEnumerable<CollectObject> ExecuteInternal()
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                ExecuteWindows();
+                return ExecuteWindows();
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                ExecuteMacOs();
+                return ExecuteMacOs();
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
-                ExecuteLinux();
+                return ExecuteLinux();
             }
+
+            return Enumerable.Empty<CollectObject>();
         }
     }
 }

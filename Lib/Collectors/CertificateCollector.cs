@@ -4,6 +4,7 @@ using AttackSurfaceAnalyzer.Objects;
 using AttackSurfaceAnalyzer.Utils;
 using Serilog;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
@@ -29,8 +30,9 @@ namespace AttackSurfaceAnalyzer.Collectors
         /// <summary>
         /// On Windows we can use the .NET API to iterate through all the stores.
         /// </summary>
-        public void ExecuteWindows()
+        public IEnumerable<CollectObject> ExecuteWindows()
         {
+            var results = new List<CollectObject>();
             foreach (StoreLocation storeLocation in (StoreLocation[])Enum.GetValues(typeof(StoreLocation)))
             {
                 foreach (StoreName storeName in (StoreName[])Enum.GetValues(typeof(StoreName)))
@@ -51,7 +53,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                                 Pkcs7 = certificate.Export(X509ContentType.Cert).ToString(),
                                 RunId = this.RunId
                             };
-                            DatabaseManager.Write(obj);
+                            results.Add(obj);
                         }
 
                         store.Close();
@@ -62,14 +64,17 @@ namespace AttackSurfaceAnalyzer.Collectors
                     }
                 }
             }
+            foreach (var result in results) { yield return result; }
         }
 
         /// <summary>
         /// On linux we check the central trusted root store (a folder), which has symlinks to actual cert locations scattered across the db
         /// We list all the certificates and then create a new X509Certificate2 object for each by filename.
         /// </summary>
-        public void ExecuteLinux()
+        public IEnumerable<CollectObject> ExecuteLinux()
         {
+            var results = new List<CollectObject>();
+
             try
             {
                 var result = ExternalCommandRunner.RunExternalCommand("ls", new string[] { "/etc/ssl/certs", "-A" });
@@ -89,20 +94,22 @@ namespace AttackSurfaceAnalyzer.Collectors
                             Subject = certificate.Subject,
                             Pkcs7 = certificate.Export(X509ContentType.Cert).ToString()
                         };
-                        DatabaseManager.Write(obj);
+                        results.Add(obj);
                     }
                     catch (Exception e)
                     {
                         Log.Debug("{0} {1} Issue creating certificate based on /etc/ssl/certs/{2}", e.GetType().ToString(), e.Message, _line);
                         Log.Debug("{0}", e.StackTrace);
-
                     }
                 }
+
             }
             catch (Exception e)
             {
                 Log.Error(e, "Failed to dump certificates from 'ls /etc/ssl/certs -A'.");
             }
+            foreach (var res in results) { yield return res; }
+
         }
 
         /// <summary>
@@ -111,8 +118,9 @@ namespace AttackSurfaceAnalyzer.Collectors
         /// So first we need pkcs12s instead, we convert using openssl, which requires we set a password
         /// we import the pkcs12 with all our certs, delete the temp files and then iterate over it the certs
         /// </summary>
-        public void ExecuteMacOs()
+        public IEnumerable<CollectObject> ExecuteMacOs()
         {
+            X509Certificate2Collection xcert = null;
             try
             {
                 var result = ExternalCommandRunner.RunExternalCommand("security", new string[] { "find-certificate", "-ap", "/System/Library/Keychains/SystemRootCertificates.keychain" });
@@ -122,51 +130,66 @@ namespace AttackSurfaceAnalyzer.Collectors
                 File.WriteAllText(tmpPath, result);
                 _ = ExternalCommandRunner.RunExternalCommand("openssl", new string[] { "pkcs12", "-export", "-nokeys", "-out", pkPath, "-passout pass:pass", "-in", tmpPath });
 
-                X509Certificate2Collection xcert = new X509Certificate2Collection();
+                xcert = new X509Certificate2Collection();
                 xcert.Import(pkPath, "pass", X509KeyStorageFlags.DefaultKeySet);
 
                 File.Delete(tmpPath);
                 File.Delete(pkPath);
-
-                var X509Certificate2Enumerator = xcert.GetEnumerator();
-
-                while (X509Certificate2Enumerator.MoveNext())
-                {
-                    var obj = new CertificateObject()
-                    {
-                        StoreLocation = StoreLocation.LocalMachine.ToString(),
-                        StoreName = StoreName.Root.ToString(),
-                        CertificateHashString = X509Certificate2Enumerator.Current.GetCertHashString(),
-                        Subject = X509Certificate2Enumerator.Current.Subject,
-                        Pkcs7 = X509Certificate2Enumerator.Current.GetRawCertDataString(),
-                        RunId = this.RunId
-                    };
-                    DatabaseManager.Write(obj);
-                }
             }
             catch (Exception e)
             {
                 Log.Error("Failed to dump certificates from 'security' or 'openssl'.");
                 Log.Debug(e, "ExecuteMacOs()");
             }
+
+            if (xcert != null)
+            {
+                var X509Certificate2Enumerator = xcert.GetEnumerator();
+
+                while (X509Certificate2Enumerator.MoveNext())
+                {
+                    CertificateObject obj = null;
+                    try
+                    {
+                        obj = new CertificateObject()
+                        {
+                            StoreLocation = StoreLocation.LocalMachine.ToString(),
+                            StoreName = StoreName.Root.ToString(),
+                            CertificateHashString = X509Certificate2Enumerator.Current.GetCertHashString(),
+                            Subject = X509Certificate2Enumerator.Current.Subject,
+                            Pkcs7 = X509Certificate2Enumerator.Current.GetRawCertDataString(),
+                            RunId = this.RunId
+                        };
+                    }
+                    catch (Exception e)
+                    {
+
+                    }
+                    yield return obj;
+                }
+            }
         }
 
         /// <summary>
         /// Execute the certificate collector.
         /// </summary>
-        public override void ExecuteInternal()
+        public override IEnumerable<CollectObject> ExecuteInternal()
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                ExecuteWindows();
+                return ExecuteWindows();
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
-                ExecuteLinux();
+                return ExecuteLinux();
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                ExecuteMacOs();
+                return ExecuteMacOs();
+            }
+            else
+            {
+                return null;
             }
         }
     }

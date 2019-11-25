@@ -32,26 +32,28 @@ namespace AttackSurfaceAnalyzer.Collectors
             return RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
         }
 
-        public override void ExecuteInternal()
+        public override IEnumerable<CollectObject> ExecuteInternal()
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                ExecuteWindows();
+                return ExecuteWindows();
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
-                ExecuteLinux();
+                return ExecuteLinux();
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                ExecuteOsX();
+                return ExecuteOsX();
             }
+
+            return Enumerable.Empty<CollectObject>();
         }
 
         /// <summary>
         /// Executes the UserAccountCollector on Windows. Uses WMI to gather local users.
         /// </summary>
-        public void ExecuteWindows()
+        public IEnumerable<CollectObject> ExecuteWindows()
         {
             try
             {
@@ -189,19 +191,19 @@ namespace AttackSurfaceAnalyzer.Collectors
 
             foreach (var user in users)
             {
-                DatabaseManager.Write(user.Value, RunId);
+                yield return user.Value;
             }
 
             foreach (var group in groups)
             {
-                DatabaseManager.Write(group.Value, RunId);
+                yield return group.Value;
             }
         }
 
         /// <summary>
         /// Executes the User account collector on Linux. Reads /etc/passwd and /etc/shadow.
         /// </summary>
-        private void ExecuteLinux()
+        private IEnumerable<CollectObject> ExecuteLinux()
         {
             var etc_passwd_lines = File.ReadAllLines("/etc/passwd");
             var etc_shadow_lines = File.ReadAllLines("/etc/shadow");
@@ -282,18 +284,18 @@ namespace AttackSurfaceAnalyzer.Collectors
                         Groups[group].Users.Add(username);
                     }
                 }
-                DatabaseManager.Write(accountDetails[username], this.RunId);
+                yield return accountDetails[username];
             }
             foreach (var group in Groups)
             {
-                DatabaseManager.Write(group.Value, this.RunId);
+                yield return group.Value;
             }
         }
 
         /// <summary>
         /// Gathers user account details on OS X. Uses dscacheutil.
         /// </summary>
-        private void ExecuteOsX()
+        private IEnumerable<CollectObject> ExecuteOsX()
         {
             Dictionary<string, GroupAccountObject> Groups = new Dictionary<string, GroupAccountObject>();
 
@@ -383,11 +385,11 @@ namespace AttackSurfaceAnalyzer.Collectors
                     }
                 }
                 accountDetails[username].Groups.AddRange(groups);
-                DatabaseManager.Write(accountDetails[username], this.RunId);
+                yield return accountDetails[username];
             }
             foreach (var group in Groups)
             {
-                DatabaseManager.Write(group.Value, this.RunId);
+                yield return group.Value;
             }
         }
     }

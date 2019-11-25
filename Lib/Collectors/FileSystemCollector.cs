@@ -5,6 +5,7 @@ using AttackSurfaceAnalyzer.Utils;
 using Mono.Unix;
 using Serilog;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -62,7 +63,7 @@ namespace AttackSurfaceAnalyzer.Collectors
             return RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
         }
 
-        public override void ExecuteInternal()
+        public override IEnumerable<CollectObject> ExecuteInternal()
         {
             if (roots == null || !roots.Any())
             {
@@ -89,8 +90,8 @@ namespace AttackSurfaceAnalyzer.Collectors
             foreach (var root in roots)
             {
                 Log.Information("{0} root {1}", Strings.Get("Scanning"), root.ToString(CultureInfo.InvariantCulture));
-                //Ensure the transaction is started to prevent collisions on the multithreaded code ahead
                 var fileInfoEnumerable = DirectoryWalker.WalkDirectory(root);
+                var results = new ConcurrentBag<CollectObject>();
                 Parallel.ForEach(fileInfoEnumerable,
                                 (fileInfo =>
                 {
@@ -98,7 +99,7 @@ namespace AttackSurfaceAnalyzer.Collectors
 
                     if (obj != null)
                     {
-                        DatabaseManager.Write(obj, RunId);
+                        results.Add(obj);
                         if (examineCertificates &&
                             fileInfo.FullName.EndsWith(".cer", StringComparison.CurrentCulture) ||
                             fileInfo.FullName.EndsWith(".der", StringComparison.CurrentCulture) ||
@@ -115,7 +116,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                                     Subject = certificate.Subject,
                                     Pkcs7 = certificate.Export(X509ContentType.Cert).ToString()
                                 };
-                                DatabaseManager.Write(certObj, RunId);
+                                results.Add(certObj);
                             }
                             catch (Exception e) when (
                                 e is System.Security.Cryptography.CryptographicException
@@ -126,6 +127,11 @@ namespace AttackSurfaceAnalyzer.Collectors
                         }
                     }
                 }));
+
+                foreach (var result in results)
+                {
+                    yield return result;
+                }
             }
         }
 

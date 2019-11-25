@@ -5,6 +5,7 @@ using AttackSurfaceAnalyzer.Objects;
 using AttackSurfaceAnalyzer.Types;
 using AttackSurfaceAnalyzer.Utils;
 using CommandLine;
+using LiteDB;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Data.Sqlite;
@@ -270,9 +271,9 @@ namespace AttackSurfaceAnalyzer
         static void Main(string[] args)
         {
 #if DEBUG
-            Logger.Setup(true, false);
+            AttackSurfaceAnalyzer.Utils.Logger.Setup(true, false);
 #else
-            Logger.Setup(false,false);
+            AttackSurfaceAnalyzer.Utils.Logger.Setup(false,false);
 #endif
             string version = (Assembly
                         .GetEntryAssembly()
@@ -286,7 +287,6 @@ namespace AttackSurfaceAnalyzer
                 .MapResult(
                     (CollectCommandOptions opts) => RunCollectCommand(opts),
                     (ExportCollectCommandOptions opts) => RunExportCollectCommand(opts),
-                    (ExportMonitorCommandOptions opts) => RunExportMonitorCommand(opts),
                     (ConfigCommandOptions opts) => RunConfigCommand(opts),
                     (GuiCommandOptions opts) => RunGuiCommand(opts),
                     errs => 1
@@ -298,9 +298,9 @@ namespace AttackSurfaceAnalyzer
         private static int RunGuiCommand(GuiCommandOptions opts)
         {
 #if DEBUG
-            Logger.Setup(true, opts.Verbose, opts.Quiet);
+            AttackSurfaceAnalyzer.Utils.Logger.Setup(true, opts.Verbose, opts.Quiet);
 #else
-            Logger.Setup(opts.Debug, opts.Verbose, opts.Quiet);
+            AttackSurfaceAnalyzer.Utils.Logger.Setup(opts.Debug, opts.Verbose, opts.Quiet);
 #endif
             DatabaseManager.Setup(opts.DatabaseFilename);
             AsaTelemetry.Setup();
@@ -359,7 +359,7 @@ namespace AttackSurfaceAnalyzer
                     else
                     {
                         Log.Information(Strings.Get("DumpingDataFromDatabase"), opts.DatabaseFilename);
-                        List<string> CollectRuns = GetRuns("collect");
+                        List<string> CollectRuns = DatabaseManager.GetRuns();
                         if (CollectRuns.Count > 0)
                         {
                             Log.Information(Strings.Get("Begin"), Strings.Get("EnumeratingCollectRunIds"));
@@ -399,22 +399,15 @@ namespace AttackSurfaceAnalyzer
                 }
                 if (opts.TrimToLatest)
                 {
-                    
+                    var col = DatabaseManager.db.GetCollection<CollectRun>("CollectRuns");
 
-                    string GET_RUNS = "select run_id from runs order by timestamp desc;";
+                    var count = col.Count(Query.All(Query.Descending));
 
-                    List<string> Runs = new List<string>();
+                    var res = col.Find(Query.All(Query.Ascending), limit: count - 1);
 
-                    using var cmd = new SqliteCommand(GET_RUNS, DatabaseManager.Connection, DatabaseManager.Transaction);
-                    using (var reader = cmd.ExecuteReader())
+                    foreach (var result in res)
                     {
-                        //Skip first row, that is the one we want to keep
-                        reader.Read();
-
-                        while (reader.Read())
-                        {
-                            DatabaseManager.DeleteRun((string)reader["run_id"]);
-                        }
+                        DatabaseManager.DeleteRun(result.run_id);
                     }
                 }
             }
@@ -425,9 +418,9 @@ namespace AttackSurfaceAnalyzer
         private static int RunExportCollectCommand(ExportCollectCommandOptions opts)
         {
 #if DEBUG
-            Logger.Setup(true, opts.Verbose, opts.Quiet);
+            AttackSurfaceAnalyzer.Utils.Logger.Setup(true, opts.Verbose, opts.Quiet);
 #else
-            Logger.Setup(opts.Debug, opts.Verbose, opts.Quiet);
+            AttackSurfaceAnalyzer.Utils.Logger.Setup(opts.Debug, opts.Verbose, opts.Quiet);
 #endif
 
             if (opts.OutputPath != null && !Directory.Exists(opts.OutputPath))
@@ -475,7 +468,7 @@ namespace AttackSurfaceAnalyzer
 
             Dictionary<string, object> results = CompareRuns(options);
 
-            JsonSerializer serializer = JsonSerializer.Create(new JsonSerializerSettings()
+            var serializer = Newtonsoft.Json.JsonSerializer.Create(new JsonSerializerSettings()
             {
                 Formatting = Formatting.Indented,
                 NullValueHandling = NullValueHandling.Ignore,
@@ -557,7 +550,7 @@ namespace AttackSurfaceAnalyzer
 
             List<RESULT_TYPE> ToExport = new List<RESULT_TYPE> { (RESULT_TYPE)ResultType };
             Dictionary<RESULT_TYPE, int> actualExported = new Dictionary<RESULT_TYPE, int>();
-            JsonSerializer serializer = JsonSerializer.Create(new JsonSerializerSettings()
+            var serializer = Newtonsoft.Json.JsonSerializer.Create(new JsonSerializerSettings()
             {
                 Formatting = Formatting.Indented,
                 NullValueHandling = NullValueHandling.Ignore,
@@ -574,17 +567,14 @@ namespace AttackSurfaceAnalyzer
             {
                 Log.Information("Exporting {0}", ExportType);
                 List<CompareResult> records = new List<CompareResult>();
-                using (var cmd = new SqliteCommand(GET_COMPARISON_RESULTS, DatabaseManager.Connection, DatabaseManager.Transaction))
+
+                var col = DatabaseManager.db.GetCollection<CompareResult>("CompareResults");
+
+                var res = col.Find(x => x.BaseRunId.Equals(BaseId) && x.CompareRunId.Equals(CompareId) && x.ResultType.Equals(ExportType));
+
+                foreach(var result in res)
                 {
-                    cmd.Parameters.AddWithValue("@comparison_id", AsaHelpers.RunIdsToCompareId(BaseId, CompareId));
-                    cmd.Parameters.AddWithValue("@result_type", ExportType);
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            records.Add(JsonConvert.DeserializeObject<CompareResult>(reader["serialized"].ToString()));
-                        }
-                    }
+                    records.Add(result);
                 }
 
                 actualExported.Add(ExportType, records.Count);
@@ -631,96 +621,6 @@ namespace AttackSurfaceAnalyzer
             }
         }
 
-        private static int RunExportMonitorCommand(ExportMonitorCommandOptions opts)
-        {
-#if DEBUG
-            Logger.Setup(true, opts.Verbose);
-#else
-            Logger.Setup(opts.Debug, opts.Verbose);
-#endif
-            if (opts.OutputPath != null && !Directory.Exists(opts.OutputPath))
-            {
-                Log.Fatal(Strings.Get("Err_OutputPathNotExist"), opts.OutputPath);
-                return 0;
-            }
-
-            DatabaseManager.Setup(opts.DatabaseFilename);
-            CheckFirstRun();
-            AsaTelemetry.Setup();
-            DatabaseManager.VerifySchemaVersion();
-
-            if (opts.RunId.Equals("Timestamp", StringComparison.InvariantCulture))
-            {
-                List<string> runIds = DatabaseManager.GetLatestRunIds(1, "monitor");
-
-                if (runIds.Count < 1)
-                {
-                    Log.Fatal(Strings.Get("Err_CouldntDetermineOneRun"));
-                    System.Environment.Exit(-1);
-                }
-                else
-                {
-                    opts.RunId = runIds.First();
-                }
-            }
-
-            Log.Information("{0} {1}", Strings.Get("Exporting"), opts.RunId);
-
-            Dictionary<string, string> StartEvent = new Dictionary<string, string>();
-            StartEvent.Add("OutputPathSet", (opts.OutputPath != null).ToString(CultureInfo.InvariantCulture));
-
-            AsaTelemetry.TrackEvent("Begin Export Monitor", StartEvent);
-
-            WriteMonitorJson(opts.RunId, (int)RESULT_TYPE.FILE, opts.OutputPath);
-
-            return 0;
-        }
-
-        public static void WriteMonitorJson(string RunId, int ResultType, string OutputPath)
-        {
-            List<FileMonitorEvent> records = new List<FileMonitorEvent>();
-            string GET_SERIALIZED_RESULTS = "select change_type, Serialized from file_system_monitored where run_id = @run_id";
-
-
-            using (var cmd = new SqliteCommand(GET_SERIALIZED_RESULTS, DatabaseManager.Connection, DatabaseManager.Transaction))
-            {
-                cmd.Parameters.AddWithValue("@run_id", RunId);
-                using (var reader = cmd.ExecuteReader())
-                {
-
-                    FileMonitorEvent obj;
-
-                    while (reader.Read())
-                    {
-                        obj = JsonConvert.DeserializeObject<FileMonitorEvent>(reader["serialized"].ToString());
-                        obj.ChangeType = (CHANGE_TYPE)int.Parse(reader["change_type"].ToString(), CultureInfo.InvariantCulture);
-                        records.Add(obj);
-                    }
-                }
-            }
-
-            JsonSerializer serializer = JsonSerializer.Create(new JsonSerializerSettings()
-            {
-                Formatting = Formatting.Indented,
-                NullValueHandling = NullValueHandling.Ignore,
-                DefaultValueHandling = DefaultValueHandling.Ignore,
-                Converters = new List<JsonConverter>() { new StringEnumConverter() }
-            });
-            var output = new Dictionary<string, Object>();
-            output["results"] = records;
-            output["metadata"] = AsaHelpers.GenerateMetadata();
-            string path = Path.Combine(OutputPath, AsaHelpers.MakeValidFileName(RunId + "_Monitoring_" + ((RESULT_TYPE)ResultType).ToString() + ".json.txt"));
-
-            using (StreamWriter sw = new StreamWriter(path)) //lgtm[cs/path-injection]
-            using (JsonWriter writer = new JsonTextWriter(sw))
-            {
-                serializer.Serialize(writer, output);
-            }
-
-            Log.Information(Strings.Get("OutputWrittenTo"), (new FileInfo(path)).FullName);
-
-        }
-
         public static List<BaseCollector> GetCollectors()
         {
             return collectors;
@@ -742,13 +642,20 @@ namespace AttackSurfaceAnalyzer
             {
                 throw new ArgumentNullException(nameof(opts));
             }
-            using (var cmd = new SqliteCommand(INSERT_RUN_INTO_RESULT_TABLE_SQL, DatabaseManager.Connection, DatabaseManager.Transaction))
+            var col = DatabaseManager.db.GetCollection<CompareRun>("CompareRuns");
+
+            var compareRun = new CompareRun()
             {
-                cmd.Parameters.AddWithValue("@base_run_id", opts.FirstRunId);
-                cmd.Parameters.AddWithValue("@compare_run_id", opts.SecondRunId);
-                cmd.Parameters.AddWithValue("@status", RUN_STATUS.RUNNING);
-                cmd.ExecuteNonQuery();
-            }
+                first_run_id = opts.FirstRunId,
+                second_run_id = opts.SecondRunId,
+                platform = AsaHelpers.GetPlatform(),
+                timestamp = DateTime.Now.ToString("o", CultureInfo.InvariantCulture),
+                version = AsaHelpers.GetVersionString(),
+                status = RUN_STATUS.RUNNING
+            };
+
+            var res = col.Insert(compareRun);
+
             var results = new Dictionary<string, object>();
 
             comparators = new List<BaseCompare>();
@@ -821,15 +728,10 @@ namespace AttackSurfaceAnalyzer
                 }
             }
 
-            using (var cmd = new SqliteCommand(UPDATE_RUN_IN_RESULT_TABLE, DatabaseManager.Connection, DatabaseManager.Transaction))
-            {
-                cmd.Parameters.AddWithValue("@base_run_id", opts.FirstRunId);
-                cmd.Parameters.AddWithValue("@compare_run_id", opts.SecondRunId);
-                cmd.Parameters.AddWithValue("@status", RUN_STATUS.COMPLETED);
-                cmd.ExecuteNonQuery();
-            }
+            compareRun.status = RUN_STATUS.COMPLETED;
 
-            DatabaseManager.Commit();
+            col.Update(compareRun);
+
             AsaTelemetry.TrackEvent("End Command", EndEvent);
             return results;
         }
@@ -870,9 +772,9 @@ namespace AttackSurfaceAnalyzer
         {
             if (opts == null) { return -1; }
 #if DEBUG
-            Logger.Setup(true, opts.Verbose, opts.Quiet);
+            AttackSurfaceAnalyzer.Utils.Logger.Setup(true, opts.Verbose, opts.Quiet);
 #else
-            Logger.Setup(opts.Debug, opts.Verbose, opts.Quiet);
+            AttackSurfaceAnalyzer.Utils.Logger.Setup(opts.Debug, opts.Verbose, opts.Quiet);
 #endif
             DatabaseManager.Setup(opts.DatabaseFilename);
             AsaTelemetry.Setup();
@@ -1001,49 +903,35 @@ namespace AttackSurfaceAnalyzer
             }
             else
             {
-                using var cmd = new SqliteCommand(SQL_GET_RUN, DatabaseManager.Connection, DatabaseManager.Transaction);
-                cmd.Parameters.AddWithValue("@run_id", opts.RunId);
-                using (var reader = cmd.ExecuteReader())
+                var col = DatabaseManager.db.GetCollection<CollectRun>("CollectRuns");
+
+                if (col.FindOne(x => x.run_id.Equals(opts.RunId)) != null)
                 {
-                    while (reader.Read())
-                    {
-                        Log.Error(Strings.Get("Err_RunIdAlreadyUsed"));
-                        return (int)GUI_ERROR.UNIQUE_ID;
-                    }
+                    Log.Error(Strings.Get("Err_RunIdAlreadyUsed"));
+                    return (int)GUI_ERROR.UNIQUE_ID;
                 }
             }
             Log.Information(Strings.Get("Begin"), opts.RunId);
 
-            string INSERT_RUN = "insert into runs (run_id, file_system, ports, users, services, registry, certificates, firewall, comobjects, eventlogs, type, timestamp, version, platform) values (@run_id, @file_system, @ports, @users, @services, @registry, @certificates, @firewall, @comobjects, @eventlogs, @type, @timestamp, @version, @platform)";
 
-            using (var cmd = new SqliteCommand(INSERT_RUN, DatabaseManager.Connection, DatabaseManager.Transaction))
+            var collectRun = new CollectRun()
             {
-                cmd.Parameters.AddWithValue("@file_system", opts.EnableFileSystemCollector);
-                cmd.Parameters.AddWithValue("@ports", opts.EnableNetworkPortCollector);
-                cmd.Parameters.AddWithValue("@users", opts.EnableUserCollector);
-                cmd.Parameters.AddWithValue("@services", opts.EnableServiceCollector);
-                cmd.Parameters.AddWithValue("@registry", opts.EnableRegistryCollector);
-                cmd.Parameters.AddWithValue("@certificates", opts.EnableCertificateCollector);
-                cmd.Parameters.AddWithValue("@firewall", opts.EnableFirewallCollector);
-                cmd.Parameters.AddWithValue("@comobjects", opts.EnableComObjectCollector);
-                cmd.Parameters.AddWithValue("@eventlogs", opts.EnableEventLogCollector);
-                cmd.Parameters.AddWithValue("@run_id", opts.RunId);
-                cmd.Parameters.AddWithValue("@type", "collect");
-                cmd.Parameters.AddWithValue("@timestamp", DateTime.Now.ToString("o", CultureInfo.InvariantCulture));
-                cmd.Parameters.AddWithValue("@version", AsaHelpers.GetVersionString());
-                cmd.Parameters.AddWithValue("@platform", AsaHelpers.GetPlatformString());
+                file_system = opts.EnableFileSystemCollector,
+                ports = opts.EnableNetworkPortCollector,
+                users = opts.EnableUserCollector,
+                services = opts.EnableServiceCollector,
+                registry = opts.EnableRegistryCollector,
+                certificates = opts.EnableCertificateCollector,
+                firewall = opts.EnableFirewallCollector,
+                comobjects = opts.EnableComObjectCollector,
+                eventlogs = opts.EnableEventLogCollector,
+                run_id = opts.RunId,
+                version = AsaHelpers.GetVersionString(),
+                platform = AsaHelpers.GetPlatform(),
+                timestamp = DateTime.Now.ToString("o", CultureInfo.InvariantCulture),
+                type = 0
+            };
 
-                try
-                {
-                    cmd.ExecuteNonQuery();
-                }
-                catch (SqliteException e)
-                {
-                    Log.Warning(e.StackTrace);
-                    Log.Warning(e.Message);
-                    returnValue = (int)GUI_ERROR.UNIQUE_ID;
-                }
-            }
             Log.Information(Strings.Get("StartingN"), collectors.Count.ToString(CultureInfo.InvariantCulture), Strings.Get("Collectors"));
 
             Dictionary<string, string> EndEvent = new Dictionary<string, string>();
@@ -1067,37 +955,7 @@ namespace AttackSurfaceAnalyzer
             }
             AsaTelemetry.TrackEvent("End Command", EndEvent);
 
-            DatabaseManager.Commit();
             return returnValue;
-        }
-
-        public static List<string> GetMonitorRuns()
-        {
-            return GetRuns("monitor");
-        }
-
-        public static List<string> GetRuns(string type)
-        {
-            DatabaseManager.GetRuns(type);
-            string Select_Runs = "select distinct run_id from runs where type=@type order by timestamp asc;";
-
-            List<string> Runs = new List<string>();
-
-            using var cmd = new SqliteCommand(Select_Runs, DatabaseManager.Connection, DatabaseManager.Transaction);
-            cmd.Parameters.AddWithValue("@type", type);
-            using (var reader = cmd.ExecuteReader())
-            {
-                while (reader.Read())
-                {
-                    Runs.Add((string)reader["run_id"]);
-                }
-            }
-            return Runs;
-        }
-
-        public static List<string> GetRuns()
-        {
-            return GetRuns("collect");
         }
 
         public static void ClearCollectors()

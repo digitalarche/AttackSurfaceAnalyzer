@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 using AttackSurfaceAnalyzer.Objects;
 using AttackSurfaceAnalyzer.Types;
+using LiteDB;
 using Microsoft.Data.Sqlite;
 using Mono.Unix;
 using Newtonsoft.Json;
@@ -10,6 +11,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -79,8 +81,16 @@ namespace AttackSurfaceAnalyzer.Utils
 
         public static bool FirstRun { get; private set; } = true;
 
+        public static LiteDatabase db;
+
         public static bool Setup(string filename = null)
         {
+            if (db != null)
+            {
+                db.Dispose();
+                db = null;
+            }
+            db = new LiteDatabase("asa.litedb");
             if (filename != null)
             {
                 if (_SqliteFilename != filename)
@@ -200,9 +210,18 @@ namespace AttackSurfaceAnalyzer.Utils
         }
         public static void SleepAndFlushQueue()
         {
-            while (!WriteQueue.IsEmpty) { 
-                WriteNext(); 
+            var col = db.GetCollection<WriteObject>("CollectObjects");
+            var toWrite = new List<WriteObject>();
+            while (!WriteQueue.IsEmpty) 
+            {
+                WriteObject result;
+                WriteQueue.TryDequeue(out result);
+                if (result != null)
+                {
+                    toWrite.Add(result);
+                }
             }
+            col.InsertBulk(toWrite);
             Thread.Sleep(500);
         }
 

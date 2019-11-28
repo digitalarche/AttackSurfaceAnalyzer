@@ -45,7 +45,7 @@ namespace AttackSurfaceAnalyzer.Utils
                 // about the systems on which this code will run.
                 catch (UnauthorizedAccessException)
                 {
-                    Log.Debug("Unable to access: {0}", currentDir);
+                    Log.Verbose("Unable to access: {0}", currentDir);
                     continue;
                 }
                 catch (System.IO.DirectoryNotFoundException)
@@ -57,7 +57,7 @@ namespace AttackSurfaceAnalyzer.Utils
                 // This catches a case where we sometimes try to walk a file
                 // even though its not a directory on Mac OS.
                 // System.IO.Directory.GetDirectories is how we get the 
-                // directories which sometimes gives you things that aren't directories.
+                // directories which sometimes seems to give you things that aren't directories.
                 catch (IOException)
                 {
                     Log.Debug("IO Error: {0}", currentDir);

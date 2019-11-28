@@ -73,23 +73,23 @@ namespace AttackSurfaceAnalyzer.Collectors
 
                 Filter.IsFiltered(AsaHelpers.GetPlatformString(), "Scan", "Registry", "Key", "Exclude", hive.ToString());
                 var registryInfoEnumerable = RegistryWalker.WalkHive(hive);
-                var bag = new ConcurrentBag<CollectObject>();
+                var results  = new ConcurrentBag<CollectObject>();
 
                 Parallel.ForEach(registryInfoEnumerable,
                     (registryObject =>
                     {
                         try
                         {
-                            bag.Add(registryObject);
+                            results.Add(registryObject);
                         }
                         catch (InvalidOperationException e)
                         {
                             Log.Debug(e, JsonConvert.SerializeObject(registryObject) + " invalid op exept");
                         }
                     }));
-                foreach (var bagel in bag)
+                foreach (var result in results)
                 {
-                    yield return bagel;
+                    yield return result;
                 }
             }
 

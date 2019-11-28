@@ -37,7 +37,7 @@ Attack Surface Analyzer currently reports on changes to the following operating 
 - Event Logs (New!)
 - Firewall Settings (New!)
 
-All data collected is stored in a local SQLite database called `asa.sqlite`.
+All data collected is stored in a local SQLite database called `asa.litedb`.
 
 ## How to Use Attack Surface Analyzer
 

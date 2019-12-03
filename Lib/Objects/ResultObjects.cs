@@ -138,5 +138,6 @@ namespace AttackSurfaceAnalyzer.Objects
     {
         public CollectObject ColObj { get; set; }
         public string RunId { get; set; }
+        public int Id { get; set; }
     }
 }

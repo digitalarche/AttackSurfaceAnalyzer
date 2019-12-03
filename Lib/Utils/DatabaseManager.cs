@@ -91,6 +91,11 @@ namespace AttackSurfaceAnalyzer.Utils
                 db = null;
             }
             db = new LiteDatabase("asa.litedb");
+
+            var results = db.GetCollection<WriteObject>("CollectObjects");
+            results.EnsureIndex(x => x.RunId);
+            results.EnsureIndex(x => x.ColObj.Identity);
+            results.EnsureIndex(x => x.ColObj.ResultType);
             if (filename != null)
             {
                 if (_SqliteFilename != filename)
@@ -181,16 +186,14 @@ namespace AttackSurfaceAnalyzer.Utils
                 }
 
                 Commit();
-
-                if (!WriterStarted)
+            }
+            if (!WriterStarted)
+            {
+                ((Action)(async () =>
                 {
-                    ((Action)(async () =>
-                    {
-                        await Task.Run(() => KeepSleepAndFlushQueue()).ConfigureAwait(false);
-                    }))();
-                    WriterStarted = true;
-                }
-
+                    await Task.Run(() => KeepSleepAndFlushQueue()).ConfigureAwait(false);
+                }))();
+                WriterStarted = true;
                 return true;
             }
             return false;

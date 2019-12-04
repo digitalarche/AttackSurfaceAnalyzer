@@ -11,7 +11,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -77,11 +76,11 @@ namespace AttackSurfaceAnalyzer.Utils
 
         public static SqliteConnection Connection { get; set; }
 
-        public static ConcurrentQueue<WriteObject> WriteQueue { get; set; }
+        public static ConcurrentQueue<CollectObject> WriteQueue { get; private set; } = new ConcurrentQueue<CollectObject>();
 
         public static bool FirstRun { get; private set; } = true;
 
-        public static LiteDatabase db;
+        public static LiteDatabase db { get; private set; }
 
         public static bool Setup(string filename = null)
         {
@@ -90,103 +89,36 @@ namespace AttackSurfaceAnalyzer.Utils
                 db.Dispose();
                 db = null;
             }
-            db = new LiteDatabase("asa.litedb");
 
-            var results = db.GetCollection<WriteObject>("CollectObjects");
-            results.EnsureIndex(x => x.RunId);
-            results.EnsureIndex(x => x.ColObj.Identity);
-            results.EnsureIndex(x => x.ColObj.ResultType);
-            if (filename != null)
+            db = new LiteDatabase((filename == null) ? "asa.litedb" : filename);
+
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                if (_SqliteFilename != filename)
-                {
-
-                    if (Connection != null)
-                    {
-                        CloseDatabase();
-                    }
-
-                    _SqliteFilename = filename;
-                }
+                var unixFileInfo = new UnixFileInfo((filename == null) ? "asa.litedb" : filename);
+                // set file permission to 666
+                unixFileInfo.FileAccessPermissions =
+                    FileAccessPermissions.UserRead | FileAccessPermissions.UserWrite
+                    | FileAccessPermissions.GroupRead | FileAccessPermissions.GroupWrite
+                    | FileAccessPermissions.OtherRead | FileAccessPermissions.OtherWrite;
             }
-            if (Connection == null)
-            {
-                WriteQueue = new ConcurrentQueue<WriteObject>();
-                Connection = new SqliteConnection($"Filename=" + _SqliteFilename);
-                Connection.Open();
 
-                if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                {
-                    var unixFileInfo = new UnixFileInfo(_SqliteFilename);
-                    // set file permission to 666
-                    unixFileInfo.FileAccessPermissions =
-                        FileAccessPermissions.UserRead | FileAccessPermissions.UserWrite
-                        | FileAccessPermissions.GroupRead | FileAccessPermissions.GroupWrite
-                        | FileAccessPermissions.OtherRead | FileAccessPermissions.OtherWrite;
-                }
+            var CollectObjects = db.GetCollection<CollectObject>("CollectObjects");
 
-                using (var cmd = new SqliteCommand(SQL_CREATE_RUNS, DatabaseManager.Connection, DatabaseManager.Transaction))
-                {
-                    cmd.ExecuteNonQuery();
+            CollectObjects.EnsureIndex(x => x.RunId);
+            CollectObjects.EnsureIndex(x => x.Identity);
+            CollectObjects.EnsureIndex(x => x.ResultType);
+            CollectObjects.EnsureIndex(x => x.Hash);
 
-                    cmd.CommandText = PRAGMAS;
-                    cmd.ExecuteNonQuery();
+            var CompareResults = db.GetCollection<CompareResult>("CompareResults");
 
-                    cmd.CommandText = SQL_CREATE_COLLECT_RESULTS;
-                    cmd.ExecuteNonQuery();
+            CompareResults.EnsureIndex(x => x.BaseRunId);
+            CompareResults.EnsureIndex(x => x.CompareRunId);
+            CompareResults.EnsureIndex(x => x.Analysis);
+            CompareResults.EnsureIndex(x => x.ChangeType);
+            CompareResults.EnsureIndex(x => x.ResultType);
+            CompareResults.EnsureIndex(x => x.Identity);
 
-                    cmd.CommandText = SQL_CREATE_COLLECT_ROW_KEY_INDEX;
-                    cmd.ExecuteNonQuery();
 
-                    cmd.CommandText = SQL_CREATE_COLLECT_RUN_ID_INDEX;
-                    cmd.ExecuteNonQuery();
-
-                    cmd.CommandText = SQL_CREATE_COLLECT_RESULT_TYPE_INDEX;
-                    cmd.ExecuteNonQuery();
-
-                    cmd.CommandText = SQL_CREATE_COLLECT_RUN_KEY_COMBINED_INDEX;
-                    cmd.ExecuteNonQuery();
-
-                    cmd.CommandText = SQL_CREATE_COLLECT_RUN_TYPE_COMBINED_INDEX;
-                    cmd.ExecuteNonQuery();
-
-                    cmd.CommandText = SQL_CREATE_COLLECT_KEY_IDENTITY_COMBINED_INDEX;
-                    cmd.ExecuteNonQuery();
-
-                    cmd.CommandText = SQL_CREATE_COLLECT_RUN_KEY_IDENTITY_COMBINED_INDEX;
-                    cmd.ExecuteNonQuery();
-
-                    cmd.CommandText = SQL_CREATE_RESULTS;
-                    cmd.ExecuteNonQuery();
-
-                    cmd.CommandText = SQL_CREATE_FINDINGS_RESULTS;
-                    cmd.ExecuteNonQuery();
-
-                    cmd.CommandText = SQL_CREATE_FINDINGS_LEVEL_INDEX;
-                    cmd.ExecuteNonQuery();
-
-                    cmd.CommandText = SQL_CREATE_FINDINGS_RESULT_TYPE_INDEX;
-                    cmd.ExecuteNonQuery();
-
-                    cmd.CommandText = SQL_CREATE_FINDINGS_IDENTITY_INDEX;
-                    cmd.ExecuteNonQuery();
-
-                    cmd.CommandText = SQL_CREATE_FINDINGS_LEVEL_RESULT_TYPE_INDEX;
-                    cmd.ExecuteNonQuery();
-
-                    cmd.CommandText = SQL_CREATE_FILE_MONITORED;
-                    cmd.ExecuteNonQuery();
-
-                    cmd.CommandText = SQL_CREATE_PERSISTED_SETTINGS;
-                    cmd.ExecuteNonQuery();
-
-                    cmd.CommandText = SQL_CREATE_DEFAULT_SETTINGS;
-                    cmd.Parameters.AddWithValue("@schema_version", SCHEMA_VERSION);
-                    FirstRun &= cmd.ExecuteNonQuery() != 0;
-                }
-
-                Commit();
-            }
             if (!WriterStarted)
             {
                 ((Action)(async () =>
@@ -213,11 +145,11 @@ namespace AttackSurfaceAnalyzer.Utils
         }
         public static void SleepAndFlushQueue()
         {
-            var col = db.GetCollection<WriteObject>("CollectObjects");
-            var toWrite = new List<WriteObject>();
-            while (!WriteQueue.IsEmpty) 
+            var col = db.GetCollection<CollectObject>("CollectObjects");
+            var toWrite = new List<CollectObject>();
+            while (!WriteQueue.IsEmpty)
             {
-                WriteObject result;
+                CollectObject result;
                 WriteQueue.TryDequeue(out result);
                 if (result != null)
                 {
@@ -449,13 +381,13 @@ namespace AttackSurfaceAnalyzer.Utils
         {
             if (objIn != null && runId != null)
             {
-                WriteQueue.Enqueue(new WriteObject() { ColObj = objIn, RunId = runId });
+                WriteQueue.Enqueue(new CollectObject() { ColObj = objIn, RunId = runId });
             }
         }
-        
+
         public static void WriteNext()
         {
-            WriteQueue.TryDequeue(out WriteObject objIn);
+            WriteQueue.TryDequeue(out CollectObject objIn);
             try
             {
                 using var cmd = new SqliteCommand(SQL_INSERT_COLLECT_RESULT, Connection, Transaction);
@@ -468,11 +400,11 @@ namespace AttackSurfaceAnalyzer.Utils
             }
             catch (SqliteException e)
             {
-                Log.Debug(exception:e,$"Error writing {objIn.ColObj.Identity} to database.");
+                Log.Debug(exception: e, $"Error writing {objIn.ColObj.Identity} to database.");
             }
             catch (NullReferenceException)
             {
-                Log.Debug($"Was this a valid WriteObject? It looked null. {JsonConvert.SerializeObject(objIn)}");
+                Log.Debug($"Was this a valid CollectObject? It looked null. {JsonConvert.SerializeObject(objIn)}");
             }
         }
 

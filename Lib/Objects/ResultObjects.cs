@@ -43,8 +43,8 @@ namespace AttackSurfaceAnalyzer.Objects
         public string CompareRowKey { get; set; }
         public string BaseRunId { get; set; }
         public string CompareRunId { get; set; }
-        public object Base { get; set; }
-        public object Compare { get; set; }
+        public CollectObject Base { get; set; }
+        public CollectObject Compare { get; set; }
 
         public bool ShouldSerializeDiffs()
         {
@@ -132,12 +132,5 @@ namespace AttackSurfaceAnalyzer.Objects
         {
             ResultType = RESULT_TYPE.CERTIFICATE;
         }
-    }
-
-    public class WriteObject
-    {
-        public CollectObject ColObj { get; set; }
-        public string RunId { get; set; }
-        public int Id { get; set; }
     }
 }

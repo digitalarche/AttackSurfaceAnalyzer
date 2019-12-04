@@ -326,7 +326,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                     }
                 }
             }
-            catch(Exception e) when (
+            catch (Exception e) when (
                 e is FileNotFoundException ||
                 e is IOException)
             {

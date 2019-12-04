@@ -22,7 +22,7 @@ namespace AttackSurfaceAnalyzer.Utils
             {
                 x86_View = RegistryKey.OpenBaseKey(Hive, RegistryView.Registry32);
             }
-            catch(Exception e) when (
+            catch (Exception e) when (
                 e is IOException ||
                 e is ArgumentException ||
                 e is UnauthorizedAccessException ||
@@ -36,13 +36,13 @@ namespace AttackSurfaceAnalyzer.Utils
             }
             catch (Exception e) when (
                 e is IOException ||
-                e is ArgumentException || 
+                e is ArgumentException ||
                 e is UnauthorizedAccessException ||
                 e is System.Security.SecurityException)
             {
 
             }
-            
+
             if (x86_View != null)
             {
                 if (startingKey != null)

@@ -79,7 +79,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                     SidMap.TryAdd(rule.IdentityReference.Value, rule.IdentityReference.Value);
                 }
             }
-            
+
             return SidMap[rule.IdentityReference.Value];
         }
 

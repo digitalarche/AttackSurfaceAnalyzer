@@ -14,6 +14,7 @@ namespace AttackSurfaceAnalyzer.Objects
                 return Path;
             }
         }
+
         public string Path { get; set; }
         public ulong Size { get; set; }
         public string SignatureStatus { get; set; }
@@ -28,7 +29,6 @@ namespace AttackSurfaceAnalyzer.Objects
         public List<string> Characteristics { get; }
 
         public List<KeyValuePair<string, string>> Permissions { get; }
-
 
         public FileSystemObject()
         {

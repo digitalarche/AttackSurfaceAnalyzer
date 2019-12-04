@@ -45,7 +45,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                 using var SearchKey = RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, RegistryView.Default).OpenSubKey("SOFTWARE\\Classes\\CLSID");
                 ParseComObjects(SearchKey);
             }
-            catch(Exception e) when (
+            catch (Exception e) when (
                 e is ArgumentException
                 || e is UnauthorizedAccessException
                 || e is System.Security.SecurityException)
@@ -157,7 +157,7 @@ namespace AttackSurfaceAnalyzer.Collectors
 
                 });
             }
-            catch(Exception e) when (
+            catch (Exception e) when (
                 e is System.Security.SecurityException
                 || e is ObjectDisposedException
                 || e is UnauthorizedAccessException

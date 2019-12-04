@@ -118,7 +118,6 @@ namespace AttackSurfaceAnalyzer.Utils
             CompareResults.EnsureIndex(x => x.ResultType);
             CompareResults.EnsureIndex(x => x.Identity);
 
-
             if (!WriterStarted)
             {
                 ((Action)(async () =>
@@ -162,6 +161,8 @@ namespace AttackSurfaceAnalyzer.Utils
 
         public static PLATFORM RunIdToPlatform(string runid)
         {
+            var CollectRuns = db.GetCollection<CollectRun>("CollectRuns");
+            var run = CollectRuns.Find()
             using (var cmd = new SqliteCommand(SQL_GET_PLATFORM_FROM_RUNID, Connection, Transaction))
             {
                 cmd.Parameters.AddWithValue("@run_id", runid);

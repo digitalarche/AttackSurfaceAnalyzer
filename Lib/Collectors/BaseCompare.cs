@@ -90,19 +90,19 @@ namespace AttackSurfaceAnalyzer.Collectors
                 throw new ArgumentNullException(nameof(secondRunId));
             }
 
-            List<RawCollectResult> addObjects = DatabaseManager.GetMissingFromFirst(firstRunId, secondRunId);
-            List<RawCollectResult> removeObjects = DatabaseManager.GetMissingFromFirst(secondRunId, firstRunId);
-            List<RawModifiedResult> modifyObjects = DatabaseManager.GetModified(firstRunId, secondRunId);
+            List<CollectObject> addObjects = DatabaseManager.GetMissingFromFirst(firstRunId, secondRunId);
+            List<CollectObject> removeObjects = DatabaseManager.GetMissingFromFirst(secondRunId, firstRunId);
+            List<Tuple<CollectObject, CollectObject>> modifyObjects = DatabaseManager.GetModified(firstRunId, secondRunId);
 
             Parallel.ForEach(addObjects,
                             (added =>
             {
                 var obj = new CompareResult()
                 {
-                    Compare = Hydrate(added),
+                    Compare = added,
                     BaseRunId = firstRunId,
                     CompareRunId = secondRunId,
-                    CompareRowKey = added.RowKey,
+                    CompareId = added.Id,
                     ChangeType = CHANGE_TYPE.CREATED,
                     ResultType = added.ResultType,
                     Identity = added.Identity
@@ -115,10 +115,10 @@ namespace AttackSurfaceAnalyzer.Collectors
             {
                 var obj = new CompareResult()
                 {
-                    Base = Hydrate(removed),
+                    Base = removed,
                     BaseRunId = firstRunId,
                     CompareRunId = secondRunId,
-                    BaseRowKey = removed.RowKey,
+                    BaseId = removed.Id,
                     ChangeType = CHANGE_TYPE.DELETED,
                     ResultType = removed.ResultType,
                     Identity = removed.Identity
@@ -131,19 +131,19 @@ namespace AttackSurfaceAnalyzer.Collectors
             {
                 var compareLogic = new CompareLogic();
                 compareLogic.Config.IgnoreCollectionOrder = true;
-                var first = Hydrate(modified.First);
-                var second = Hydrate(modified.Second);
+                var first = modified.Item1;
+                var second = modified.Item2;
                 var obj = new CompareResult()
                 {
                     Base = first,
                     Compare = second,
                     BaseRunId = firstRunId,
                     CompareRunId = secondRunId,
-                    BaseRowKey = modified.First.RowKey,
-                    CompareRowKey = modified.Second.RowKey,
+                    BaseId = modified.Item1.Id,
+                    CompareId = modified.Item2.Id,
                     ChangeType = CHANGE_TYPE.MODIFIED,
-                    ResultType = modified.First.ResultType,
-                    Identity = modified.First.Identity
+                    ResultType = modified.Item1.ResultType,
+                    Identity = modified.Item1.Identity
                 };
 
                 var properties = first.GetType().GetProperties();
@@ -258,7 +258,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                     }
                 }
 
-                Results[$"{modified.First.ResultType.ToString()}_{CHANGE_TYPE.MODIFIED.ToString()}"].Enqueue(obj);
+                Results[$"{modified.Item1.ResultType.ToString()}_{CHANGE_TYPE.MODIFIED.ToString()}"].Enqueue(obj);
             }));
 
             foreach (var empty in Results.Where(x => x.Value.Count == 0))

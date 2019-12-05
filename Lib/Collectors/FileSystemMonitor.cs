@@ -53,12 +53,6 @@ namespace AttackSurfaceAnalyzer.Collectors
             return RuntimeInformation.IsOSPlatform(OSPlatform.Windows) || RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
         }
 
-        public static void Truncate(string RunId)
-        {
-            using var cmd = new SqliteCommand(SQL_TRUNCATE, DatabaseManager.Connection, DatabaseManager.Transaction);
-            cmd.Parameters.AddWithValue("@run_id", RunId);
-        }
-
         /// <summary>
         /// This initializer ensures that the access time filter isn't used with InterrogateChanges, which causes a loop.
         /// </summary>
@@ -70,7 +64,6 @@ namespace AttackSurfaceAnalyzer.Collectors
         public FileSystemMonitor(string runId, string dir, bool interrogateChanges, NotifyFilters filters)
         {
             this.RunId = runId;
-            Truncate(runId);
             this.getFileDetails = interrogateChanges;
 
             watcher = new FileSystemWatcher();
@@ -97,6 +90,11 @@ namespace AttackSurfaceAnalyzer.Collectors
 
         public void WriteChange(FileSystemEventArgs objIn)
         {
+            DatabaseManager.Write(new FileMonitorObject()
+            {
+                RunId = this.RunId,
+                
+            })
             if (objIn != null)
             {
                 string timestamp = DateTime.Now.ToString("O", CultureInfo.InvariantCulture);

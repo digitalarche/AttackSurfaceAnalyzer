@@ -5,7 +5,7 @@ using System.Text;
 
 namespace AttackSurfaceAnalyzer.Objects
 {
-    class MonitorRun
+    public class MonitorRun
     {
         public string RunId { get; set; }
         public string Timestamp { get; set; }

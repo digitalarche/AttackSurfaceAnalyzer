@@ -3,18 +3,13 @@
 using Microsoft.ApplicationInsights;
 using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.ApplicationInsights.Extensibility;
-using Microsoft.Data.Sqlite;
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 
 namespace AttackSurfaceAnalyzer.Utils
 {
     public static class AsaTelemetry
     {
-        private const string UPDATE_TELEMETRY = "replace into persisted_settings values ('telemetry_opt_out',@TelemetryOptOut)"; //lgtm [cs/literal-as-local]
-        private const string CHECK_TELEMETRY = "select value from persisted_settings where setting='telemetry_opt_out'";
-
         private const string INSTRUMENTATION_KEY = "719e5a56-dae8-425f-be07-877db7ae4d3b";
 
         private static TelemetryClient Client;
@@ -31,21 +26,11 @@ namespace AttackSurfaceAnalyzer.Utils
             if (Client == null)
             {
                 using var config = TelemetryConfiguration.CreateDefault();
-                using (var cmd = new SqliteCommand(CHECK_TELEMETRY, DatabaseManager.Connection, DatabaseManager.Transaction))
-                {
-                    using (var reader = cmd.ExecuteReader())
-                    {
-                        while (reader.Read())
-                        {
-                            OptOut = bool.Parse(reader["value"].ToString());
-                        }
-                    }
-                }
                 config.InstrumentationKey = INSTRUMENTATION_KEY;
-                config.DisableTelemetry = OptOut;
+                config.DisableTelemetry = DatabaseManager.TelemetryOptedOut();
                 Client = new TelemetryClient(config);
                 Client.Context.Component.Version = AsaHelpers.GetVersionString();
-                // Force some values to static values to prevent gathering unneeded data
+                // Forcing these to static values helps anonymize the telemetry.
                 Client.Context.Cloud.RoleInstance = "Asa";
                 Client.Context.Cloud.RoleName = "Asa";
                 Client.Context.Location.Ip = "1.1.1.1";
@@ -69,12 +54,8 @@ namespace AttackSurfaceAnalyzer.Utils
             Client.Context.Cloud.RoleInstance = "Asa";
             Client.Context.Cloud.RoleName = "Asa";
             Client.Context.Location.Ip = "1.1.1.1";
-            using (var cmd = new SqliteCommand(UPDATE_TELEMETRY, DatabaseManager.Connection, DatabaseManager.Transaction))
-            {
-                cmd.Parameters.AddWithValue("@TelemetryOptOut", OptOut.ToString(CultureInfo.InvariantCulture));
-                cmd.ExecuteNonQuery();
-                DatabaseManager.Commit();
-            }
+
+            DatabaseManager.SetTelemetryOptOut(optOut);
         }
 
         public static void TrackEvent(string name, Dictionary<string, string> evt)

@@ -491,7 +491,7 @@ namespace AttackSurfaceAnalyzer
 
             if (opts.FirstRunId == "Timestamps" || opts.SecondRunId == "Timestamps")
             {
-                List<string> runIds = DatabaseManager.GetLatestRunIds(2, "collect");
+                List<string> runIds = DatabaseManager.GetLatestCollectRunIds(2, "collect");
 
                 if (runIds.Count < 2)
                 {
@@ -699,7 +699,7 @@ namespace AttackSurfaceAnalyzer
 
             if (opts.RunId.Equals("Timestamp", StringComparison.InvariantCulture))
             {
-                List<string> runIds = DatabaseManager.GetLatestRunIds(1, "monitor");
+                List<string> runIds = DatabaseManager.GetLatestCollectRunIds(1, "monitor");
 
                 if (runIds.Count < 1)
                 {
@@ -1165,7 +1165,7 @@ namespace AttackSurfaceAnalyzer
             return GUI_ERROR.NONE;
         }
 
-        public static int StopMonitors()
+        public static int StopMonitors(string RunId)
         {
             foreach (var c in monitors)
             {
@@ -1173,8 +1173,22 @@ namespace AttackSurfaceAnalyzer
 
                 c.StopRun();
             }
+            var MonitorRuns = DatabaseManager.db.GetCollection<MonitorRun>("MonitorRuns");
+            var Result = MonitorRuns.FindOne(x => x.RunId.Equals(RunId))
+            if ().Equals(null))
+            {
+            }
 
-            DatabaseManager.Commit();
+            MonitorRuns.Insert(new MonitorRun()
+            {
+                Platform = AsaHelpers.GetPlatformString(),
+                PlatformVersion = AsaHelpers.GetOsVersion(),
+                ResultTypes = new List<RESULT_TYPE>() { RESULT_TYPE.FILE },
+                RunId = RunId,
+                Timestamp = DateTime.Now.ToString("o", CultureInfo.InvariantCulture),
+                RunStatus = RUN_STATUS.RUNNING,
+                Version = AsaHelpers.GetVersionString()
+            });
 
             return 0;
         }
@@ -1238,9 +1252,6 @@ namespace AttackSurfaceAnalyzer
             AdminOrQuit();
 
             CheckFirstRun();
-            DatabaseManager.VerifySchemaVersion();
-
-
 
             int returnValue = (int)GUI_ERROR.NONE;
             opts.RunId = opts.RunId.Trim();
@@ -1412,7 +1423,6 @@ namespace AttackSurfaceAnalyzer
             }
             AsaTelemetry.TrackEvent("End Command", EndEvent);
 
-            DatabaseManager.Commit();
             return returnValue;
         }
 

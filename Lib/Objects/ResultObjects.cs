@@ -18,8 +18,8 @@ namespace AttackSurfaceAnalyzer.Objects
 
     public class RawModifiedResult
     {
-        public RawCollectResult First { get; set; }
-        public RawCollectResult Second { get; set; }
+        public CollectObject First { get; set; }
+        public CollectObject Second { get; set; }
     }
 
     public class FileMonitorEvent
@@ -33,14 +33,15 @@ namespace AttackSurfaceAnalyzer.Objects
 
     public class CompareResult
     {
+        public int Id { get; set; }
         public string Identity { get; set; }
         public CHANGE_TYPE ChangeType { get; set; }
         public RESULT_TYPE ResultType { get; set; }
         public ANALYSIS_RESULT_TYPE Analysis { get; set; }
         public List<Rule> Rules { get; }
         public List<Diff> Diffs { get; }
-        public string BaseRowKey { get; set; }
-        public string CompareRowKey { get; set; }
+        public int BaseId { get; set; }
+        public int CompareId { get; set; }
         public string BaseRunId { get; set; }
         public string CompareRunId { get; set; }
         public CollectObject Base { get; set; }

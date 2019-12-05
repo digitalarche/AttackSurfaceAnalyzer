@@ -218,20 +218,20 @@ function GetResultTypes() {
     var data = { 'BaseId': $('#SelectedBaseRunId').val(), 'CompareId': $('#SelectedCompareRunId').val() };
 
     $.getJSON('GetResultTypes', data, function (result) {
-        if ((result.File || result.Port || result.Certificate || result.Service || result.Registry || result.User || result.Firewall || result.ComObject || result.LogEntry) == false) {
+        if (result.length == 0) {
             SetStatus(l("%NoCommon"));
         } else {
             $("#ExportResultsButton").attr('disabled', false);
         }
-        $('#FileRadio').attr('disabled', (result.File) ? false : true);
-        $('#PortRadio').attr('disabled', (result.Port) ? false : true);
-        $('#CertificateRadio').attr('disabled', (result.Certificate) ? false : true);
-        $('#ServiceRadio').attr('disabled', (result.Service) ? false : true);
-        $('#RegistryRadio').attr('disabled', (result.Registry) ? false : true);
-        $('#UserRadio').attr('disabled', (result.User) ? false : true);
-        $('#FirewallRadio').attr('disabled', (result.Firewall) ? false : true);
-        $('#ComRadio').attr('disabled', (result.ComObject) ? false : true);
-        $('#LogRadio').attr('disabled', (result.LogEntry) ? false : true);
+        $('#FileRadio').attr('disabled', (result.includes(RESULT_TYPE.FILE)) ? false : true);
+        $('#PortRadio').attr('disabled', (result.includes(RESULT_TYPE.PORT)) ? false : true);
+        $('#CertificateRadio').attr('disabled', (result.includes(RESULT_TYPE.CERTIFICATE)) ? false : true);
+        $('#ServiceRadio').attr('disabled', (result.includes(RESULT_TYPE.SERVICES)) ? false : true);
+        $('#RegistryRadio').attr('disabled', (result.includes(RESULT_TYPE.REGISTRY)) ? false : true);
+        $('#UserRadio').attr('disabled', (result.includes(RESULT_TYPE.USER)) ? false : true);
+        $('#FirewallRadio').attr('disabled', (result.includes(RESULT_TYPE.FIREWALL)) ? false : true);
+        $('#ComRadio').attr('disabled', (result.includes(RESULT_TYPE.COM)) ? false : true);
+        $('#LogRadio').attr('disabled', (result.includes(RESULT_TYPE.LOG)) ? false : true);
     });
 }
 

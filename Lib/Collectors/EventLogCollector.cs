@@ -181,7 +181,7 @@ namespace AttackSurfaceAnalyzer.Collectors
             Regex LogHeader = new Regex("^([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-2][0-9]:[0-5][0-9]:[0-5][0-9]).*?0x[0-9a-f]*[\\s]*([A-Za-z]*)[\\s]*0x[0-9a-f][\\s]*[0-9]*[\\s]*([0-9]*)[\\s]*(.*?):(.*)");
 
 
-            List<string> data = null;
+            List<string> data = new List<string>();
             string previousLine = null;
             foreach (var line in file.Split('\n'))
             {

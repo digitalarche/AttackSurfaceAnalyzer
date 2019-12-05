@@ -163,7 +163,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                         // Translate owner into the string representation.
                         obj.Owner = (oid.Translate(typeof(NTAccount)) as NTAccount).Value;
                     }
-                    catch (IdentityNotMappedException)
+                    catch (Exception e) when (e is IdentityNotMappedException || e is NullReferenceException)
                     {
                         Log.Verbose("Couldn't find the Owner from SID {0} for file {1}", oid.ToString(), fileInfo.FullName);
                     }
@@ -172,7 +172,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                         // Translate group into the string representation.
                         obj.Group = (gid.Translate(typeof(NTAccount)) as NTAccount).Value;
                     }
-                    catch (IdentityNotMappedException)
+                    catch (Exception e) when (e is IdentityNotMappedException || e is NullReferenceException)
                     {
                         // This is fine. Some SIDs don't map to NT Accounts.
                         Log.Verbose("Couldn't find the Group from SID {0} for file {1}", gid.ToString(), fileInfo.FullName);

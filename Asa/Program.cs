@@ -280,11 +280,18 @@ namespace AttackSurfaceAnalyzer
 #else
             Logger.Setup(false,false);
 #endif
-            string version = (Assembly
-                        .GetEntryAssembly()
-                        .GetCustomAttributes(typeof(AssemblyInformationalVersionAttribute), false)
-                        as AssemblyInformationalVersionAttribute[])[0].InformationalVersion;
-            Log.Information("AttackSurfaceAnalyzer v.{0}", version);
+            if (Assembly.GetEntryAssembly() != null) {
+                string version = (Assembly
+.GetEntryAssembly()
+.GetCustomAttributes(typeof(AssemblyInformationalVersionAttribute), false)
+as AssemblyInformationalVersionAttribute[])[0].InformationalVersion;
+                Log.Information("AttackSurfaceAnalyzer v.{0}", version);
+            }
+            else
+            {
+                Log.Error("Could not determine AttackSurfaceAnalyzer Version");
+            }
+            
 
             Strings.Setup();
 

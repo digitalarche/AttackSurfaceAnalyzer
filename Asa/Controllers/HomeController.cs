@@ -255,9 +255,9 @@ namespace AttackSurfaceAnalyzer.Gui.Controllers
                 dict.Add(splits[splits.Length - 1], c.IsRunning());
             }
             Dictionary<string, object> output = new Dictionary<string, object>();
-            output.Add("RunId", RunId);
+            output.Add("RunId", HttpUtility.UrlEncode(RunId));
             output.Add("Runs", dict);
-            return Json(JsonConvert.SerializeObject(output));
+            return Json(output);
         }
 
         public ActionResult GetLatestRunId()

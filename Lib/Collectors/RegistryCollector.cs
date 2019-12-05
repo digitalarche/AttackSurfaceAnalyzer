@@ -66,21 +66,26 @@ namespace AttackSurfaceAnalyzer.Collectors
 
         public static string GetName(RegistryAccessRule rule)
         {
-            if (!SidMap.ContainsKey(rule.IdentityReference.Value))
+            if (rule != null)
             {
-                try
+                if (!SidMap.ContainsKey(rule.IdentityReference.Value))
                 {
-                    var mappedValue = rule.IdentityReference.Translate(typeof(NTAccount)).Value;
-                    SidMap.TryAdd(rule.IdentityReference.Value, mappedValue);
+                    try
+                    {
+                        var mappedValue = rule.IdentityReference.Translate(typeof(NTAccount)).Value;
+                        SidMap.TryAdd(rule.IdentityReference.Value, mappedValue);
+                    }
+                    catch (IdentityNotMappedException)
+                    {
+                        // This is fine. Some SIDs don't map to NT Accounts.
+                        SidMap.TryAdd(rule.IdentityReference.Value, rule.IdentityReference.Value);
+                    }
                 }
-                catch (IdentityNotMappedException)
-                {
-                    // This is fine. Some SIDs don't map to NT Accounts.
-                    SidMap.TryAdd(rule.IdentityReference.Value, rule.IdentityReference.Value);
-                }
+
+                return SidMap[rule.IdentityReference.Value];
             }
 
-            return SidMap[rule.IdentityReference.Value];
+            return string.Empty;
         }
 
         public static RegistryObject RegistryKeyToRegistryObject(RegistryKey registryKey)

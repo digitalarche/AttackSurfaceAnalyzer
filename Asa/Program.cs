@@ -268,12 +268,6 @@ namespace AttackSurfaceAnalyzer
         private static List<BaseMonitor> monitors = new List<BaseMonitor>();
         private static List<BaseCompare> comparators = new List<BaseCompare>();
 
-        private const string INSERT_RUN_INTO_RESULT_TABLE_SQL = "insert into results (base_run_id, compare_run_id, status) values (@base_run_id, @compare_run_id, @status);";
-        private const string UPDATE_RUN_IN_RESULT_TABLE = "update results set status = @status where (base_run_id = @base_run_id and compare_run_id = @compare_run_id)";
-        private const string SQL_GET_RESULT_TYPES_SINGLE = "select * from runs where run_id = @run_id";
-
-        private const string SQL_GET_RUN = "select run_id from runs where run_id=@run_id";
-
         static void Main(string[] args)
         {
 #if DEBUG
@@ -559,8 +553,6 @@ namespace AttackSurfaceAnalyzer
 
         public static void WriteScanJson(int ResultType, string BaseId, string CompareId, bool ExportAll, string OutputPath)
         {
-            string GET_COMPARISON_RESULTS = "select * from findings where comparison_id = @comparison_id and result_type=@result_type order by level des;";
-
             Log.Information("Write scan json");
 
             List<RESULT_TYPE> ToExport = new List<RESULT_TYPE> { (RESULT_TYPE)ResultType };
@@ -816,12 +808,13 @@ namespace AttackSurfaceAnalyzer
             }
 
             var exitEvent = new ManualResetEvent(false);
+            System.Timers.Timer aTimer = null;
 
             // If duration is set, we use the secondary timer.
             if (opts.Duration > 0)
             {
                 Log.Information("{0} {1} {2}.", Strings.Get("MonitorStartedFor"), opts.Duration, Strings.Get("Minutes"));
-                var aTimer = new System.Timers.Timer
+                aTimer = new System.Timers.Timer
                 {
                     Interval = opts.Duration * 60 * 1000,
                     AutoReset = false,
@@ -852,6 +845,9 @@ namespace AttackSurfaceAnalyzer
             // Write a spinner and wait until CTRL+C
             WriteSpinner(exitEvent);
             Log.Information("");
+
+            exitEvent.Dispose();
+            if (aTimer != null) { aTimer.Dispose(); }
 
             foreach (var c in monitors)
             {

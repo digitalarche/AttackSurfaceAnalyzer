@@ -9,6 +9,7 @@ using Serilog;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -305,7 +306,16 @@ namespace AttackSurfaceAnalyzer.Collectors
         public bool TryCompare(string firstRunId, string secondRunId)
         {
             Start();
+            var watch = System.Diagnostics.Stopwatch.StartNew();
             Compare(firstRunId, secondRunId);
+            watch.Stop();
+            var t = TimeSpan.FromMilliseconds(watch.ElapsedMilliseconds);
+            var answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
+                                    t.Hours,
+                                    t.Minutes,
+                                    t.Seconds,
+                                    t.Milliseconds);
+            Log.Debug("Finished Comparing in {0}", answer);
             Stop();
             return true;
         }

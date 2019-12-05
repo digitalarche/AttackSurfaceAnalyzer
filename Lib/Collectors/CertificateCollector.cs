@@ -63,10 +63,12 @@ namespace AttackSurfaceAnalyzer.Collectors
             }
         }
 
+
         /// <summary>
         /// On linux we check the central trusted root store (a folder), which has symlinks to actual cert locations scattered across the db
         /// We list all the certificates and then create a new X509Certificate2 object for each by filename.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "<Pending>")]
         public void ExecuteLinux()
         {
             try
@@ -94,7 +96,6 @@ namespace AttackSurfaceAnalyzer.Collectors
                     {
                         Log.Debug("{0} {1} Issue creating certificate based on /etc/ssl/certs/{2}", e.GetType().ToString(), e.Message, _line);
                         Log.Debug("{0}", e.StackTrace);
-
                     }
                 }
             }
@@ -104,12 +105,14 @@ namespace AttackSurfaceAnalyzer.Collectors
             }
         }
 
+
         /// <summary>
         /// On macos we use the keychain and export the certificates as .pem.
         /// However, on macos Certificate2 doesn't support loading from a pem.
         /// So first we need pkcs12s instead, we convert using openssl, which requires we set a password
         /// we import the pkcs12 with all our certs, delete the temp files and then iterate over it the certs
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "<Pending>")]
         public void ExecuteMacOs()
         {
             try

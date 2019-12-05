@@ -297,6 +297,11 @@ namespace AttackSurfaceAnalyzer.Utils
 
             var res1 = col.Find(x => x.RunId == firstRunId);
             var res2 = col.Find(x => x.RunId == secondRunId);
+
+            if (!res1.Any())
+            {
+                return res2.ToList();
+            }
             var res1_ids = (from x in res1 select x.Identity).ToHashSet();
             var missing = res2.Where(x => !res1_ids.Contains(x.Identity)).ToList();
             return missing;
@@ -308,6 +313,10 @@ namespace AttackSurfaceAnalyzer.Utils
 
             var res1 = col.Find(Query.EQ("Collect.RunId", firstRunId));
             var res2 = col.Find(Query.EQ("Collect.RunId", secondRunId));
+            if (!res1.Any())
+            {
+                return new List<Tuple<CollectObject, CollectObject>>();
+            }
             var res1_ids = (from x in res1 select x.Identity);
             var res = res2.Where(x => res1_ids.Contains(x.Identity) && (x.Hash != res1.Where(y => y.Identity.Equals(x.Identity)).First().Hash));
 

@@ -27,6 +27,7 @@ namespace AttackSurfaceAnalyzer.Collectors
             this.processedObjects = new HashSet<string>();
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "<Pending>")]
         public override bool CanRunOnPlatform()
         {
             try
@@ -107,10 +108,12 @@ namespace AttackSurfaceAnalyzer.Collectors
             }
         }
 
+
         /// <summary>
         /// Executes the OpenPortCollector on Linux. Calls out to the `ss`
         /// command and parses the output, sending the output to the database.
         /// </summary>
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "<Pending>")]
         private void ExecuteLinux()
         {
             try

@@ -44,24 +44,9 @@ namespace AttackSurfaceAnalyzer.Collectors
                                     t.Milliseconds);
             Log.Information(Strings.Get("Completed"), this.GetType().Name, answer);
 
-            var prevFlush = DatabaseManager.WriteQueue.Count;
-
             watch = System.Diagnostics.Stopwatch.StartNew();
 
-            var interval = 0;
-            var printOn = 10;
-
-            while (DatabaseManager.HasCollectElements())
-            {
-                Thread.Sleep(1000/printOn);
-                interval++;
-                if (interval%printOn == 0)
-                {
-                    var sample = DatabaseManager.WriteQueue.Count;
-                    Log.Debug("Flushing {0} results. ({1}/s)", DatabaseManager.WriteQueue.Count, prevFlush - sample);
-                    prevFlush = sample;
-                }
-            }
+            Log.Debug("Flushing {0} results.", DatabaseManager.WriteQueue.Count);
 
             watch.Stop();
             t = TimeSpan.FromMilliseconds(watch.ElapsedMilliseconds);
@@ -70,7 +55,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                                     t.Minutes,
                                     t.Seconds,
                                     t.Milliseconds);
-            Log.Debug($"Completed flushing in {answer}");
+            Log.Debug("Completed flushing in {0}", answer);
 
             Stop();
         }

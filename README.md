@@ -12,7 +12,7 @@ Attack Surface Analyzer is a Microsoft-developed open source security tool that 
 surface of a target system and reports on potential security vulnerabilities introduced during
 the installation of software or system misconfiguration. 
 
-Attack Surface Analyzer 2.1 replaces the original [Attack Surface Analyzer](https://www.microsoft.com/en-us/download/details.aspx?id=24487) tool, released publicly in 2012.
+Attack Surface Analyzer 2.2 replaces the original [Attack Surface Analyzer](https://www.microsoft.com/en-us/download/details.aspx?id=24487) tool, released publicly in 2012.
 
 Potential users of Attack Surface Analyzer include:
 
@@ -33,11 +33,11 @@ Attack Surface Analyzer currently reports on changes to the following operating 
 - Network Ports
 - Certificates
 - Registry
-- COM Objects (New!)
-- Event Logs (New!)
-- Firewall Settings (New!)
+- COM Objects
+- Event Logs
+- Firewall Settings
 
-All data collected is stored in a local SQLite database called `asa.sqlite`.
+All data collected is stored in a local LiteDB database called `asa.litedb`.
 
 ## How to Use Attack Surface Analyzer
 

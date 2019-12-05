@@ -5,7 +5,7 @@ using System.Text;
 
 namespace AttackSurfaceAnalyzer.Objects
 {
-    class CollectRun
+    public class CollectRun
     {
         public string RunId { get; set; }
         public string Timestamp { get; set; }

@@ -5,12 +5,11 @@ using System.Text;
 
 namespace AttackSurfaceAnalyzer.Objects
 {
-    class CompareRun
+    public class CompareRun
     {
         public string BaseRunId { get; set; }
         public string CompareRunId { get; set; }
         public string Timestamp { get; set; }
-        public List<RESULT_TYPE> ResultTypes { get; set; }
         public string Version { get; set; }
         public string Platform { get; set; }
         public string PlatformVersion { get; set; }

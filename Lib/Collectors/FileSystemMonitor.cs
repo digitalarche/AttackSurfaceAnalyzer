@@ -3,7 +3,6 @@
 using AttackSurfaceAnalyzer.Objects;
 using AttackSurfaceAnalyzer.Types;
 using AttackSurfaceAnalyzer.Utils;
-using Microsoft.Data.Sqlite;
 using Newtonsoft.Json;
 using System;
 using System.Globalization;
@@ -17,9 +16,6 @@ namespace AttackSurfaceAnalyzer.Collectors
     /// </summary>
     public class FileSystemMonitor : BaseMonitor, IDisposable
     {
-        private const string SQL_TRUNCATE = "delete from file_system_monitored where run_id=@run_id";
-        private const string SQL_INSERT = "insert into file_system_monitored (run_id, row_key, timestamp, change_type, path, old_path, name, old_name, extended_results, notify_filters, serialized) values (@run_id, @row_key, @timestamp, @change_type, @path, @old_path, @name, @old_name, @extended_results, @notify_filters, @serialized)";
-
         private FileSystemWatcher watcher;
 
         public static readonly NotifyFilters defaultFilters = NotifyFilters.Attributes
@@ -88,37 +84,18 @@ namespace AttackSurfaceAnalyzer.Collectors
             return watcher.EnableRaisingEvents;
         }
 
-        public void WriteChange(FileSystemEventArgs objIn)
+        public void WriteChange(FileSystemEventArgs objIn, object details = null)
         {
+            if (objIn == null) { return; }
+
             DatabaseManager.Write(new FileMonitorObject()
             {
                 RunId = this.RunId,
-                
-            })
-            if (objIn != null)
-            {
-                string timestamp = DateTime.Now.ToString("O", CultureInfo.InvariantCulture);
-
-                using var cmd = new SqliteCommand(SQL_INSERT, DatabaseManager.Connection, DatabaseManager.Transaction);
-                cmd.Parameters.AddWithValue("@run_id", this.RunId);
-                cmd.Parameters.AddWithValue("@row_key", CryptoHelpers.CreateHash(objIn.ToString() + timestamp + watcher.NotifyFilter.ToString() + objIn.ChangeType.ToString()));
-                cmd.Parameters.AddWithValue("@timestamp", timestamp);
-                cmd.Parameters.AddWithValue("@path", objIn.FullPath);
-                cmd.Parameters.AddWithValue("@old_path", "");
-                cmd.Parameters.AddWithValue("@name", objIn.Name);
-                cmd.Parameters.AddWithValue("@old_name", "");
-                cmd.Parameters.AddWithValue("@change_type", ChangeTypeStringToChangeType(objIn.ChangeType.ToString()));
-                cmd.Parameters.AddWithValue("@extended_results", "");
-                cmd.Parameters.AddWithValue("@notify_filters", watcher.NotifyFilter.ToString());
-                cmd.Parameters.AddWithValue("@serialized", JsonConvert.SerializeObject(objIn));
-                FileSystemMonitorResult fileSystemObject = new FileSystemMonitorResult()
-                {
-                    evt = objIn,
-                    filter = watcher.NotifyFilter
-                };
-
-                cmd.ExecuteNonQuery();
-            }
+                ChangeType = ChangeTypeStringToChangeType(objIn.ChangeType.ToString()),
+                Name = objIn.Name,
+                Path = objIn.FullPath,
+                Timestamp = AsaHelpers.TimestringNow()
+            });
         }
 
         private static CHANGE_TYPE ChangeTypeStringToChangeType(string change_type)
@@ -159,35 +136,6 @@ namespace AttackSurfaceAnalyzer.Collectors
             }
         }
 
-        public void WriteChange(FileSystemEventArgs objIn, string details)
-        {
-            if (objIn != null)
-            {
-                var evt = new FileMonitorEvent()
-                {
-                    ChangeType = ChangeTypeToChangeType(objIn.ChangeType),
-                    Path = objIn.FullPath,
-                    Name = objIn.Name
-                };
-                string timestamp = DateTime.Now.ToString("O", CultureInfo.InvariantCulture);
-
-                using var cmd = new SqliteCommand(SQL_INSERT, DatabaseManager.Connection, DatabaseManager.Transaction);
-                cmd.Parameters.AddWithValue("@run_id", this.RunId);
-                cmd.Parameters.AddWithValue("@row_key", CryptoHelpers.CreateHash(objIn.ToString() + timestamp + watcher.NotifyFilter.ToString() + objIn.ChangeType.ToString()));
-                cmd.Parameters.AddWithValue("@timestamp", timestamp);
-                cmd.Parameters.AddWithValue("@path", objIn.FullPath);
-                cmd.Parameters.AddWithValue("@old_path", "");
-                cmd.Parameters.AddWithValue("@name", objIn.Name);
-                cmd.Parameters.AddWithValue("@old_name", "");
-                cmd.Parameters.AddWithValue("@change_type", ChangeTypeToChangeType(objIn.ChangeType));
-                cmd.Parameters.AddWithValue("@extended_results", details);
-                cmd.Parameters.AddWithValue("@notify_filters", watcher.NotifyFilter.ToString());
-                cmd.Parameters.AddWithValue("@serialized", JsonConvert.SerializeObject(evt));
-
-                cmd.ExecuteNonQuery();
-            }
-        }
-
         public void WriteRename(RenamedEventArgs objIn)
         {
             if (objIn == null) { return; }
@@ -200,22 +148,18 @@ namespace AttackSurfaceAnalyzer.Collectors
                 OldName = objIn.OldName
             };
 
-            string timestamp = DateTime.Now.ToString("O", CultureInfo.InvariantCulture);
+            if (objIn == null) { return; }
 
-            using var cmd = new SqliteCommand(SQL_INSERT, DatabaseManager.Connection, DatabaseManager.Transaction);
-            cmd.Parameters.AddWithValue("@run_id", this.RunId);
-            cmd.Parameters.AddWithValue("@row_key", CryptoHelpers.CreateHash(objIn.ToString() + timestamp + watcher.NotifyFilter.ToString() + objIn.ChangeType.ToString()));
-            cmd.Parameters.AddWithValue("@timestamp", timestamp);
-            cmd.Parameters.AddWithValue("@path", objIn.FullPath);
-            cmd.Parameters.AddWithValue("@old_path", objIn.OldFullPath ?? "");
-            cmd.Parameters.AddWithValue("@name", objIn.Name ?? "");
-            cmd.Parameters.AddWithValue("@old_name", objIn.OldName ?? "");
-            cmd.Parameters.AddWithValue("@change_type", ChangeTypeToChangeType(objIn.ChangeType));
-            cmd.Parameters.AddWithValue("@extended_results", "");
-            cmd.Parameters.AddWithValue("@notify_filters", watcher.NotifyFilter.ToString());
-            cmd.Parameters.AddWithValue("@serialized", JsonConvert.SerializeObject(evt));
-
-            cmd.ExecuteNonQuery();
+            DatabaseManager.Write(new FileMonitorObject()
+            {
+                RunId = this.RunId,
+                ChangeType = ChangeTypeToChangeType(objIn.ChangeType),
+                Name = objIn.Name,
+                OldName = objIn.OldName,
+                Path = objIn.FullPath,
+                OldPath = objIn.OldFullPath,
+                Timestamp = AsaHelpers.TimestringNow()
+            });
         }
 
 

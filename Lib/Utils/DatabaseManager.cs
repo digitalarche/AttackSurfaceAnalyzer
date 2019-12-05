@@ -3,7 +3,6 @@
 using AttackSurfaceAnalyzer.Objects;
 using AttackSurfaceAnalyzer.Types;
 using LiteDB;
-using Microsoft.Data.Sqlite;
 using Mono.Unix;
 using Newtonsoft.Json;
 using Serilog;
@@ -22,7 +21,7 @@ namespace AttackSurfaceAnalyzer.Utils
     public static class DatabaseManager
     {
         private static bool WriterStarted = false;
-
+        public static string DatabaseLocation = "asa.litedb";
         public static ConcurrentQueue<CollectObject> WriteQueue { get; private set; } = new ConcurrentQueue<CollectObject>();
         public static ConcurrentQueue<CompareResult> CompareWriteQueue { get; private set; } = new ConcurrentQueue<CompareResult>();
         public static ConcurrentQueue<MonitorObject> MonitorWriteQueue { get; private set; } = new ConcurrentQueue<MonitorObject>();
@@ -39,7 +38,9 @@ namespace AttackSurfaceAnalyzer.Utils
                 db = null;
             }
 
-            db = new LiteDatabase((filename == null) ? "asa.litedb" : filename);
+            DatabaseLocation = (filename == null) ? "asa.litedb" : filename;
+
+            db = new LiteDatabase(DatabaseLocation);
 
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) || RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
@@ -62,6 +63,15 @@ namespace AttackSurfaceAnalyzer.Utils
 
             CollectRuns.EnsureIndex(x => x.RunId);
 
+            var MonitorObjects = db.GetCollection<MonitorObject>("MonitorObjects");
+
+            MonitorObjects.EnsureIndex(x => x.RunId);
+            MonitorObjects.EnsureIndex(x => x.ResultType);
+
+            var MonitorRuns = db.GetCollection<MonitorRun>("MonitorRuns");
+
+            MonitorRuns.EnsureIndex(x => x.RunId);
+
             var CompareResults = db.GetCollection<CompareResult>("CompareResults");
 
             CompareResults.EnsureIndex(x => x.BaseRunId);
@@ -73,7 +83,9 @@ namespace AttackSurfaceAnalyzer.Utils
 
             var Settings = db.GetCollection<Setting>("Settings");
 
-            if (Settings.FindOne(x => x.Name.Equals("TelemetryOptOut")).Equals(null))
+            Settings.EnsureIndex(x => x.Name);
+
+            if (Settings.FindOne(x => x.Name.Equals("TelemetryOptOut")) == null)
             {
                 var TeleOptOut = new Setting() { Name = "TelemetryOptOut", Value = false };
                 Settings.Insert(TeleOptOut);
@@ -331,7 +343,22 @@ namespace AttackSurfaceAnalyzer.Utils
             }
 
             return output;
+        }
 
+        public static List<string> GetLatestMonitorRunIds(int numberOfIds)
+        {
+            List<string> output = new List<string>();
+
+            var col = db.GetCollection<MonitorRun>("MonitorRuns");
+
+            var results = col.Find(Query.All(Query.Descending), limit: numberOfIds);
+
+            foreach (var res in results)
+            {
+                output.Add(res.RunId);
+            }
+
+            return output;
         }
 
         public static void CloseDatabase()
@@ -375,6 +402,30 @@ namespace AttackSurfaceAnalyzer.Utils
             var CompareRuns = db.GetCollection<CompareRun>("CompareRuns");
             var result = CompareRuns.FindOne(x => x.BaseRunId.Equals(FirstRunId) && x.CompareRunId.Equals(SecondRunId));
             return !(result == null);
+        }
+
+        public static List<CollectRun> GetCollectRuns()
+        {
+            var CollectRuns = db.GetCollection<CollectRun>("CollectRuns");
+            return CollectRuns.FindAll().ToList();
+        }
+
+        public static List<MonitorRun> GetMonitorRuns()
+        {
+            var MonitorRuns = db.GetCollection<MonitorRun>("MonitorRuns");
+            return MonitorRuns.FindAll().ToList();
+        }
+
+        public static List<CompareResult> GetCompareResults(RESULT_TYPE ResultType)
+        {
+            var CompareResults = db.GetCollection<CompareResult>("CompareResults");
+            return CompareResults.Find(x => x.ResultType == ResultType).ToList();
+        }
+
+        public static List<MonitorObject> GetMonitorObjects(string RunId, int ResultType)
+        {
+            var MonitorObjects = db.GetCollection<MonitorObject>("MonitorObjects");
+            return MonitorObjects.Find(x => x.RunId == RunId).ToList();
         }
     }
 }

@@ -6,6 +6,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -112,6 +113,23 @@ namespace AttackSurfaceAnalyzer.Utils
             return PLATFORM.UNKNOWN.ToString();
         }
 
+        public static PLATFORM GetPlatform()
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                return PLATFORM.LINUX;
+            }
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                return PLATFORM.WINDOWS;
+            }
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            {
+                return PLATFORM.MACOS;
+            }
+            return PLATFORM.UNKNOWN;
+        }
+
         public static string GetOsVersion()
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -168,6 +186,11 @@ namespace AttackSurfaceAnalyzer.Utils
             return o is IDictionary &&
                    o.GetType().IsGenericType &&
                    o.GetType().GetGenericTypeDefinition().IsAssignableFrom(typeof(Dictionary<,>));
+        }
+
+        public static string TimestringNow()
+        {
+            return DateTime.Now.ToString("O", CultureInfo.InvariantCulture);
         }
     }
 }

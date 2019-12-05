@@ -1255,31 +1255,31 @@ namespace AttackSurfaceAnalyzer
                 var resultTypes = DatabaseManager.GetResultTypes(opts.MatchedCollectorId);
                 foreach (var resultType in resultTypes)
                 {
-                    switch (resultType.Key)
+                    switch (resultType)
                     {
                         case RESULT_TYPE.FILE:
-                            opts.EnableFileSystemCollector = resultType.Value;
+                            opts.EnableFileSystemCollector = true;
                             break;
                         case RESULT_TYPE.PORT:
-                            opts.EnableNetworkPortCollector = resultType.Value;
+                            opts.EnableNetworkPortCollector = true;
                             break;
                         case RESULT_TYPE.CERTIFICATE:
-                            opts.EnableCertificateCollector = resultType.Value;
+                            opts.EnableCertificateCollector = true;
                             break;
                         case RESULT_TYPE.COM:
-                            opts.EnableComObjectCollector = resultType.Value;
+                            opts.EnableComObjectCollector = true;
                             break;
                         case RESULT_TYPE.FIREWALL:
-                            opts.EnableFirewallCollector = resultType.Value;
+                            opts.EnableFirewallCollector = true;
                             break;
                         case RESULT_TYPE.LOG:
-                            opts.EnableEventLogCollector = resultType.Value;
+                            opts.EnableEventLogCollector = true;
                             break;
                         case RESULT_TYPE.SERVICE:
-                            opts.EnableServiceCollector = resultType.Value;
+                            opts.EnableServiceCollector = true;
                             break;
                         case RESULT_TYPE.USER:
-                            opts.EnableUserCollector = resultType.Value;
+                            opts.EnableUserCollector = true;
                             break;
                     }
                 }

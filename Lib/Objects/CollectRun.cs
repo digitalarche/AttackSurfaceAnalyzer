@@ -11,7 +11,7 @@ namespace AttackSurfaceAnalyzer.Objects
         public string Timestamp { get; set; }
         public List<RESULT_TYPE> ResultTypes { get; set; }
         public string Version { get; set; }
-        public string Platform { get; set; }
+        public PLATFORM Platform { get; set; }
         public string PlatformVersion { get; set; }
         public int Id { get; set; }
         public RUN_STATUS RunStatus { get; set; }

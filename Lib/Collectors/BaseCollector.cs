@@ -49,7 +49,7 @@ namespace AttackSurfaceAnalyzer.Collectors
 
             watch = System.Diagnostics.Stopwatch.StartNew();
 
-            while (DatabaseManager.HasElements())
+            while (DatabaseManager.HasCollectElements())
             {
                 Thread.Sleep(1000);
                 var sample = DatabaseManager.WriteQueue.Count;

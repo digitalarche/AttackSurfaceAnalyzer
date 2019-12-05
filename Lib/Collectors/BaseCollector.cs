@@ -48,12 +48,19 @@ namespace AttackSurfaceAnalyzer.Collectors
 
             watch = System.Diagnostics.Stopwatch.StartNew();
 
+            var interval = 0;
+            var printOn = 10;
+
             while (DatabaseManager.HasCollectElements())
             {
-                Thread.Sleep(1000);
-                var sample = DatabaseManager.WriteQueue.Count;
-                Log.Debug("Flushing {0} results. ({1}/s)", DatabaseManager.WriteQueue.Count, prevFlush - sample);
-                prevFlush = sample;
+                Thread.Sleep(1000/printOn);
+                interval++;
+                if (interval%printOn == 0)
+                {
+                    var sample = DatabaseManager.WriteQueue.Count;
+                    Log.Debug("Flushing {0} results. ({1}/s)", DatabaseManager.WriteQueue.Count, prevFlush - sample);
+                    prevFlush = sample;
+                }
             }
 
             watch.Stop();

@@ -101,6 +101,10 @@ namespace AttackSurfaceAnalyzer.Utils
                 {
                     await Task.Run(() => KeepSleepAndFlushCompareQueue()).ConfigureAwait(false);
                 }))();
+                ((Action)(async () =>
+                {
+                    await Task.Run(() => KeepSleepAndFlushMonitorQueue()).ConfigureAwait(false);
+                }))();
                 WriterStarted = true;
                 return true;
             }
@@ -131,19 +135,22 @@ namespace AttackSurfaceAnalyzer.Utils
         }
         public static void SleepAndFlushQueue()
         {
-            var col = db.GetCollection<CollectObject>("CollectObjects");
-            var toWrite = new List<CollectObject>();
-            while (!WriteQueue.IsEmpty)
+            if (db != null)
             {
-                CollectObject result;
-                WriteQueue.TryDequeue(out result);
-                if (result != null)
+                var col = db.GetCollection<CollectObject>("CollectObjects");
+                var toWrite = new List<CollectObject>();
+                while (!WriteQueue.IsEmpty)
                 {
-                    toWrite.Add(result);
+                    CollectObject result;
+                    WriteQueue.TryDequeue(out result);
+                    if (result != null)
+                    {
+                        toWrite.Add(result);
+                    }
                 }
+                col.InsertBulk(toWrite);
             }
-            col.InsertBulk(toWrite);
-            Thread.Sleep(500);
+            Thread.Sleep(100);
         }
 
         public static void KeepSleepAndFlushCompareQueue()
@@ -156,19 +163,22 @@ namespace AttackSurfaceAnalyzer.Utils
 
         public static void SleepAndFlushCompareQueue()
         {
-            var col = db.GetCollection<CompareResult>("CompareResults");
-            var toWrite = new List<CompareResult>();
-            while (!CompareWriteQueue.IsEmpty)
+            if (db != null)
             {
-                CompareResult result;
-                CompareWriteQueue.TryDequeue(out result);
-                if (result != null)
+                var col = db.GetCollection<CompareResult>("CompareResults");
+                var toWrite = new List<CompareResult>();
+                while (!CompareWriteQueue.IsEmpty)
                 {
-                    toWrite.Add(result);
+                    CompareResult result;
+                    CompareWriteQueue.TryDequeue(out result);
+                    if (result != null)
+                    {
+                        toWrite.Add(result);
+                    }
                 }
+                col.InsertBulk(toWrite);
+                Thread.Sleep(100);
             }
-            col.InsertBulk(toWrite);
-            Thread.Sleep(500);
         }
 
         public static void KeepSleepAndFlushMonitorQueue()
@@ -181,19 +191,22 @@ namespace AttackSurfaceAnalyzer.Utils
 
         public static void SleepAndFlushMonitorQueue()
         {
-            var col = db.GetCollection<MonitorObject>("MonitorObjects");
-            var toWrite = new List<MonitorObject>();
-            while (!MonitorWriteQueue.IsEmpty)
+            if (db != null)
             {
-                MonitorObject result;
-                MonitorWriteQueue.TryDequeue(out result);
-                if (result != null)
+                var col = db.GetCollection<MonitorObject>("MonitorObjects");
+                var toWrite = new List<MonitorObject>();
+                while (!MonitorWriteQueue.IsEmpty)
                 {
-                    toWrite.Add(result);
+                    MonitorObject result;
+                    MonitorWriteQueue.TryDequeue(out result);
+                    if (result != null)
+                    {
+                        toWrite.Add(result);
+                    }
                 }
+                col.InsertBulk(toWrite);
+                Thread.Sleep(100);
             }
-            col.InsertBulk(toWrite);
-            Thread.Sleep(500);
         }
 
         public static PLATFORM RunIdToPlatform(string runid)
@@ -282,19 +295,11 @@ namespace AttackSurfaceAnalyzer.Utils
         {
             var col = db.GetCollection<CollectObject>("CollectObjects");
 
-            var res1 = col.Find(Query.EQ("Collect.RunId", firstRunId));
-            var res2 = col.Find(Query.EQ("Collect.RunId", secondRunId));
-            var res1_ids = (from x in res1 select x.Identity);
-            var MissingList = res2.Where(x => !res1_ids.Contains(x.Identity)).ToList();
-
-            List<CollectObject> output = new List<CollectObject>();
-
-            foreach (var Missing in MissingList)
-            {
-                output.Add(Missing);
-            }
-
-            return output;
+            var res1 = col.Find(x => x.RunId == firstRunId);
+            var res2 = col.Find(x => x.RunId == secondRunId);
+            var res1_ids = (from x in res1 select x.Identity).ToHashSet();
+            var missing = res2.Where(x => !res1_ids.Contains(x.Identity)).ToList();
+            return missing;
         }
 
         public static List<Tuple<CollectObject, CollectObject>> GetModified(string firstRunId, string secondRunId)
@@ -365,6 +370,7 @@ namespace AttackSurfaceAnalyzer.Utils
         {
             db.Dispose();
             db = null;
+            DatabaseLocation = null;
         }
 
         public static void DeleteRun(string runid)

@@ -21,6 +21,7 @@ namespace AttackSurfaceAnalyzer.Utils
     public static class DatabaseManager
     {
         private static bool WriterStarted = false;
+        public static bool IsFlushing { get; private set; }
         public static string DatabaseLocation = "asa.litedb";
         public static ConcurrentQueue<CollectObject> WriteQueue { get; private set; } = new ConcurrentQueue<CollectObject>();
         public static ConcurrentQueue<CompareResult> CompareWriteQueue { get; private set; } = new ConcurrentQueue<CompareResult>();
@@ -141,9 +142,11 @@ namespace AttackSurfaceAnalyzer.Utils
         {
             if (db != null)
             {
+                IsFlushing = !WriteQueue.IsEmpty;
+                
                 var col = db.GetCollection<CollectObject>("CollectObjects");
                 var toWrite = new List<CollectObject>();
-                while (!WriteQueue.IsEmpty)
+                while (!WriteQueue.IsEmpty && toWrite.Count < 1000)
                 {
                     CollectObject result;
                     WriteQueue.TryDequeue(out result);
@@ -152,7 +155,26 @@ namespace AttackSurfaceAnalyzer.Utils
                         toWrite.Add(result);
                     }
                 }
-                col.InsertBulk(toWrite);
+                if (toWrite.Count > 0)
+                {
+                    var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+                    Log.Debug("Begining flush of {0} results.", toWrite.Count);
+
+                    col.InsertBulk(toWrite);
+
+                    stopwatch.Stop();
+                    TimeSpan t = TimeSpan.FromMilliseconds(stopwatch.ElapsedMilliseconds);
+                    string answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
+                                            t.Hours,
+                                            t.Minutes,
+                                            t.Seconds,
+                                            t.Milliseconds);
+
+                    Log.Debug("Completed Flushing in {0} ({1}/s)", answer, (((double)toWrite.Count) / stopwatch.ElapsedMilliseconds) * 1000);
+                }
+
+
             }
             Thread.Sleep(100);
         }

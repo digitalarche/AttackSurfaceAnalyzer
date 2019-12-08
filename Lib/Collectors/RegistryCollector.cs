@@ -101,6 +101,18 @@ namespace AttackSurfaceAnalyzer.Collectors
 
                 regObj.AddSubKeys(new List<string>(registryKey.GetSubKeyNames()));
 
+                foreach (string valueName in registryKey.GetValueNames())
+                {
+                    try
+                    {
+                        regObj.Values.Add(valueName, (registryKey.GetValue(valueName) == null) ? "" : (registryKey.GetValue(valueName).ToString()));
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Debug(ex, "Found an exception processing registry values.");
+                    }
+                }
+
                 foreach (RegistryAccessRule rule in registryKey.GetAccessControl().GetAccessRules(true, true, typeof(System.Security.Principal.SecurityIdentifier)))
                 {
                     string name = GetName(rule);
@@ -114,22 +126,9 @@ namespace AttackSurfaceAnalyzer.Collectors
                         regObj.Permissions.Add(name, new List<string>() { rule.RegistryRights.ToString() });
                     }
                 }
-
-                foreach (string valueName in registryKey.GetValueNames())
-                {
-                    try
-                    {
-                        regObj.Values.Add(valueName, (registryKey.GetValue(valueName) == null) ? "" : (registryKey.GetValue(valueName).ToString()));
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Debug(ex, "Found an exception processing registry values.");
-                    }
-                }
             }
             catch (System.ArgumentException e)
             {
-                Log.Debug(e, "Exception parsing {0}", registryKey.Name);
             }
             catch (Exception e)
             {

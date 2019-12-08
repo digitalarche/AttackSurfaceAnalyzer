@@ -49,14 +49,12 @@ namespace AttackSurfaceAnalyzer.Collectors
 
             stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-            var StartingCount = DatabaseManager.WriteQueue.Count;
-            Log.Debug("Begining flush of {0} results.", StartingCount);
+            Log.Debug("Waiting for flush.");
 
-            while (DatabaseManager.WriteQueue.Count > 0)
+            while (DatabaseManager.IsFlushing)
             {
                 Thread.Sleep(100);
             }
-
             stopwatch.Stop();
             t = TimeSpan.FromMilliseconds(stopwatch.ElapsedMilliseconds);
             answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
@@ -64,7 +62,8 @@ namespace AttackSurfaceAnalyzer.Collectors
                                     t.Minutes,
                                     t.Seconds,
                                     t.Milliseconds);
-            Log.Debug("Completed flushing in {0} ({1}/s)", answer, (((double)StartingCount) / stopwatch.ElapsedMilliseconds) * 1000);
+
+            Log.Debug("Completed Flush in {0}", answer);
 
             Stop();
         }

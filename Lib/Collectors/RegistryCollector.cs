@@ -129,6 +129,7 @@ namespace AttackSurfaceAnalyzer.Collectors
             }
             catch (System.ArgumentException e)
             {
+                Log.Verbose(e, "Exception parsing {0}", registryKey.Name);
             }
             catch (Exception e)
             {

@@ -90,6 +90,10 @@ namespace AttackSurfaceAnalyzer.Utils
                 var TeleOptOut = new Setting() { Name = "TelemetryOptOut", Value = false };
                 Settings.Insert(TeleOptOut);
             }
+            else
+            {
+                FirstRun = false;
+            }
 
             if (!WriterStarted)
             {

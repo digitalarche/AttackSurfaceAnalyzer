@@ -22,6 +22,8 @@ namespace AttackSurfaceAnalyzer.Collectors
 
         private int _numCollected = 0;
 
+        private Stopwatch watch;
+
         public void Execute()
         {
             if (!CanRunOnPlatform())
@@ -31,39 +33,46 @@ namespace AttackSurfaceAnalyzer.Collectors
             }
             Start();
 
-            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
             ExecuteInternal();
 
-            watch.Stop();
-            TimeSpan t = TimeSpan.FromMilliseconds(watch.ElapsedMilliseconds);
+            stopwatch.Stop();
+            TimeSpan t = TimeSpan.FromMilliseconds(stopwatch.ElapsedMilliseconds);
             string answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
                                     t.Hours,
                                     t.Minutes,
                                     t.Seconds,
                                     t.Milliseconds);
-            Log.Information(Strings.Get("Completed"), this.GetType().Name, answer);
 
-            watch = System.Diagnostics.Stopwatch.StartNew();
+            Log.Debug("Completed Gathering in {0}", answer);
 
-            Log.Debug("Flushing {0} results.", DatabaseManager.WriteQueue.Count);
+            stopwatch = System.Diagnostics.Stopwatch.StartNew();
 
-            watch.Stop();
-            t = TimeSpan.FromMilliseconds(watch.ElapsedMilliseconds);
+            var StartingCount = DatabaseManager.WriteQueue.Count;
+            Log.Debug("Begining flush of {0} results.", StartingCount);
+
+            while (DatabaseManager.WriteQueue.Count > 0)
+            {
+                Thread.Sleep(100);
+            }
+
+            stopwatch.Stop();
+            t = TimeSpan.FromMilliseconds(stopwatch.ElapsedMilliseconds);
             answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
                                     t.Hours,
                                     t.Minutes,
                                     t.Seconds,
                                     t.Milliseconds);
-            Log.Debug("Completed flushing in {0}", answer);
+            Log.Debug("Completed flushing in {0} ({1}/s)", answer, (((double)StartingCount) / stopwatch.ElapsedMilliseconds) * 1000);
 
             Stop();
         }
+
         public abstract bool CanRunOnPlatform();
 
         public abstract void ExecuteInternal();
 
-        private Stopwatch watch;
 
         public RUN_STATUS IsRunning()
         {

@@ -58,9 +58,8 @@ namespace AttackSurfaceAnalyzer.Gui.Controllers
             return Json(true);
         }
 
-        public ActionResult GetMonitorResults(string RunId, int ResultType, int Offset, int NumResults)
+        public ActionResult GetMonitorResults(string RunId, int Offset, int NumResults)
         {
-
             var results = new List<OutputFileMonitorResult>();
             using (var cmd = new SqliteCommand(GET_MONITOR_RESULTS, DatabaseManager.Connection, DatabaseManager.Transaction))
             {
@@ -297,7 +296,7 @@ namespace AttackSurfaceAnalyzer.Gui.Controllers
         public ActionResult StartCollection(string Id, bool File, bool Port, bool Service, bool User, bool Registry, bool Certificates, bool Com, bool Firewall, bool Log)
         {
             CollectCommandOptions opts = new CollectCommandOptions();
-            opts.RunId = Id.Trim();
+            opts.RunId = Id?.Trim();
             opts.EnableFileSystemCollector = File;
             opts.EnableNetworkPortCollector = Port;
             opts.EnableServiceCollector = Service;
@@ -335,7 +334,9 @@ namespace AttackSurfaceAnalyzer.Gui.Controllers
                 }
             }
 
-            Task.Factory.StartNew<int>(() => AttackSurfaceAnalyzerClient.RunCollectCommand(opts));
+#pragma warning disable CA2008 // Do not create tasks without passing a TaskScheduler
+            _ = Task.Factory.StartNew(() => AttackSurfaceAnalyzerClient.RunCollectCommand(opts));
+#pragma warning restore CA2008 // Do not create tasks without passing a TaskScheduler
             return Json(GUI_ERROR.NONE);
         }
 
@@ -351,7 +352,7 @@ namespace AttackSurfaceAnalyzer.Gui.Controllers
             return Json(true);
         }
 
-        public ActionResult StartMonitoring(string RunId, string Directory, string Extension)
+        public ActionResult StartMonitoring(string RunId, string Directory)
         {
             if (RunId != null)
             {
@@ -439,7 +440,9 @@ namespace AttackSurfaceAnalyzer.Gui.Controllers
                 }
             }
 
-            Task.Factory.StartNew(() => AttackSurfaceAnalyzerClient.CompareRuns(opts));
+#pragma warning disable CA2008 // Do not create tasks without passing a TaskScheduler
+            _ = Task.Factory.StartNew(() => AttackSurfaceAnalyzerClient.CompareRuns(opts));
+#pragma warning restore CA2008 // Do not create tasks without passing a TaskScheduler
 
             return Json("Started Analysis");
         }
@@ -478,7 +481,7 @@ namespace AttackSurfaceAnalyzer.Gui.Controllers
             return runModels;
         }
 
-        private IEnumerable<DataRunModel> GetRunModels()
+        private static IEnumerable<DataRunModel> GetRunModels()
         {
             List<string> Runs = AttackSurfaceAnalyzerClient.GetRuns("collect");
 

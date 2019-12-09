@@ -66,6 +66,11 @@ namespace AttackSurfaceAnalyzer.Collectors
 
         public static string GetName(RegistryAccessRule rule)
         {
+            if (rule == null)
+            {
+                return string.Empty;
+            }
+
             if (!SidMap.ContainsKey(rule.IdentityReference.Value))
             {
                 try
@@ -96,6 +101,18 @@ namespace AttackSurfaceAnalyzer.Collectors
 
                 regObj.AddSubKeys(new List<string>(registryKey.GetSubKeyNames()));
 
+                foreach (string valueName in registryKey.GetValueNames())
+                {
+                    try
+                    {
+                        regObj.Values.Add(valueName, (registryKey.GetValue(valueName) == null) ? "" : (registryKey.GetValue(valueName).ToString()));
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Debug(ex, "Found an exception processing registry values.");
+                    }
+                }
+
                 foreach (RegistryAccessRule rule in registryKey.GetAccessControl().GetAccessRules(true, true, typeof(System.Security.Principal.SecurityIdentifier)))
                 {
                     string name = GetName(rule);
@@ -110,21 +127,11 @@ namespace AttackSurfaceAnalyzer.Collectors
                     }
                 }
 
-                foreach (string valueName in registryKey.GetValueNames())
-                {
-                    try
-                    {
-                        regObj.Values.Add(valueName, (registryKey.GetValue(valueName) == null) ? "" : (registryKey.GetValue(valueName).ToString()));
-                    }
-                    catch (Exception ex)
-                    {
-                        Log.Debug(ex, "Found an exception processing registry values.");
-                    }
-                }
+
             }
             catch (System.ArgumentException e)
             {
-                Log.Debug(e, "Exception parsing {0}", registryKey.Name);
+                Log.Verbose(e, "Exception parsing {0}", registryKey.Name);
             }
             catch (Exception e)
             {
@@ -138,7 +145,7 @@ namespace AttackSurfaceAnalyzer.Collectors
         {
             foreach (var hive in Hives)
             {
-                Log.Debug("Starting " + hive.ToString());
+                Log.Debug("Starting hive {0}",hive.ToString());
                 if (!Filter.IsFiltered(AsaHelpers.GetPlatformString(), "Scan", "Registry", "Hive", "Include", hive.ToString()) && Filter.IsFiltered(AsaHelpers.GetPlatformString(), "Scan", "Registry", "Hive", "Exclude", hive.ToString(), out Regex Capturer))
                 {
                     Log.Debug("{0} '{1}' {2} '{3}'.", Strings.Get("ExcludingHive"), hive.ToString(), Strings.Get("DueToFilter"), Capturer.ToString());
@@ -164,7 +171,6 @@ namespace AttackSurfaceAnalyzer.Collectors
                             Log.Debug(e, JsonConvert.SerializeObject(registryKey) + " invalid op exept");
                         }
                     }));
-                Log.Debug("Finished " + hive.ToString());
             }
         }
     }

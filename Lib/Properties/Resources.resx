@@ -498,4 +498,7 @@
   <data name="CollectorNotSupportedOnPlatform" xml:space="preserve">
     <value>{0} isn't supported on this platform and failed to run. This won't impact results for other collectors.</value>
   </data>
+  <data name="SchemaFail" xml:space="preserve">
+    <value>Schema version of database is {0} but {1} is required for this version of ASA. Use config --reset-database to delete the incompatible database. This will delete all data contained in that database.</value>
+  </data>
 </root>

@@ -109,6 +109,7 @@ namespace AttackSurfaceAnalyzer.Utils
             x64_View.Dispose();
         }
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "<Pending>")]
         public static RegistryObject RegistryKeyToRegistryObject(RegistryKey registryKey)
         {
             RegistryObject regObj = null;
@@ -161,14 +162,16 @@ namespace AttackSurfaceAnalyzer.Utils
                     }
                 }
             }
-            catch (System.ArgumentException e)
+            catch (System.ArgumentException)
             {
-
                 Log.Debug("Invalid Handle (ArgumentException) {0}", registryKey.Name);
             }
             catch (Exception e)
             {
                 Log.Debug(e, "Couldn't process reg key {0}", registryKey.Name);
+                Dictionary<string, string> ExceptionEvent = new Dictionary<string, string>();
+                ExceptionEvent.Add("Exception Type", e.GetType().ToString());
+                AsaTelemetry.TrackEvent("RegistryKeyToRegistryObject", ExceptionEvent);
             }
 
             return regObj;

@@ -60,6 +60,9 @@ namespace AttackSurfaceAnalyzer.Utils
         private const string SQL_GET_PLATFORM_FROM_RUNID = "select platform from runs where run_id = @run_id";
 
         private const string SQL_INSERT_COLLECT_RESULT = "insert into collect (run_id, result_type, row_key, identity, serialized) values (@run_id, @result_type, @row_key, @identity, @serialized)";
+        private const string SQL_INSERT_COLLECT_2_RESULT = "insert into collect (run_id, result_type, row_key, identity, serialized) values (@run_id, @result_type, @row_key, @identity, @serialized),(@run_id_2, @result_type_2, @row_key_2, @identity_2, @serialized_2)";
+        private const string SQL_INSERT_COLLECT_10_RESULT = "insert into collect (run_id, result_type, row_key, identity, serialized) values (@run_id, @result_type, @row_key, @identity, @serialized),(@run_id_2, @result_type_2, @row_key_2, @identity_2, @serialized_2),(@run_id_3, @result_type_3, @row_key_3, @identity_3, @serialized_3),(@run_id_4, @result_type_4, @row_key_4, @identity_4, @serialized_4),(@run_id_5, @result_type_5, @row_key_5, @identity_5, @serialized_5),(@run_id_6, @result_type_6, @row_key_6, @identity_6, @serialized_6),(@run_id_7, @result_type_7, @row_key_7, @identity_7, @serialized_7),(@run_id_8, @result_type_8, @row_key_8, @identity_8, @serialized_8),(@run_id_9, @result_type_9, @row_key_9, @identity_9, @serialized_9),(@run_id_10, @result_type_10, @row_key_10, @identity_10, @serialized_10)";
+
         private const string SQL_INSERT_FINDINGS_RESULT = "insert into findings (comparison_id, result_type, level, identity, serialized) values (@comparison_id, @result_type, @level, @identity, @serialized)";
 
         private const string SQL_GET_COLLECT_MISSING_IN_B = "select * from collect b where b.run_id = @second_run_id and b.identity not in (select identity from collect a where a.run_id = @first_run_id);";
@@ -68,14 +71,16 @@ namespace AttackSurfaceAnalyzer.Utils
 
         private const string SQL_GET_RESULTS_BY_RUN_ID = "select * from collect where run_id = @run_id";
 
-        private const string PRAGMAS = "PRAGMA main.auto_vacuum = 0;";
+        private const string PRAGMAS = "PRAGMA main.auto_vacuum = 0; ";
 
         private const string SCHEMA_VERSION = "4";
         private static bool WriterStarted = false;
+        public static bool DoWriting { get; set; }
 
-        public static SqliteConnection Connection { get; set; }
 
-        public static ConcurrentQueue<WriteObject> WriteQueue { get; set; }
+        public static SqliteConnection Connection { get; private set; }
+
+        public static ConcurrentQueue<WriteObject> WriteQueue { get; private set; }
 
         public static bool FirstRun { get; private set; } = true;
 
@@ -200,9 +205,25 @@ namespace AttackSurfaceAnalyzer.Utils
         }
         public static void SleepAndFlushQueue()
         {
-            while (!WriteQueue.IsEmpty) { 
-                WriteNext(); 
+            if (DoWriting)
+            {
+                while (!WriteQueue.IsEmpty)
+                {
+                    if (WriteQueue.Count >= 10)
+                    {
+                        WriteTen();
+                    }
+                    else if (WriteQueue.Count >= 2)
+                    {
+                        WriteTwo();
+                    }
+                    else
+                    {
+                        WriteNext();
+                    }
+                }
             }
+            
             Thread.Sleep(500);
         }
 
@@ -274,7 +295,7 @@ namespace AttackSurfaceAnalyzer.Utils
                 reader.Read();
                 if (!reader["value"].ToString().Equals(SCHEMA_VERSION))
                 {
-                    Log.Fatal("Schema version of database is {0} but {1} is required. Use config --reset-database to delete the incompatible database.", reader["value"].ToString(), SCHEMA_VERSION);
+                    Log.Fatal(Strings.Get("SchemaFail"), reader["value"].ToString(), SCHEMA_VERSION);
                     Environment.Exit(-1);
                 }
             }
@@ -447,6 +468,122 @@ namespace AttackSurfaceAnalyzer.Utils
             catch (SqliteException e)
             {
                 Log.Debug(exception:e,$"Error writing {objIn.ColObj.Identity} to database.");
+            }
+            catch (NullReferenceException)
+            {
+                Log.Debug($"Was this a valid WriteObject? It looked null. {JsonConvert.SerializeObject(objIn)}");
+            }
+        }
+
+        public static void WriteTwo()
+        {
+            WriteQueue.TryDequeue(out WriteObject objIn);
+            WriteQueue.TryDequeue(out WriteObject objIn2);
+            try
+            {
+                using var cmd = new SqliteCommand(SQL_INSERT_COLLECT_2_RESULT, Connection, Transaction);
+                cmd.Parameters.AddWithValue("@run_id", objIn.RunId);
+                cmd.Parameters.AddWithValue("@row_key", CryptoHelpers.CreateHash(JsonConvert.SerializeObject(objIn.ColObj)));
+                cmd.Parameters.AddWithValue("@identity", objIn.ColObj.Identity);
+                cmd.Parameters.AddWithValue("@serialized", JsonConvert.SerializeObject(objIn.ColObj, Formatting.None, new JsonSerializerSettings() { DefaultValueHandling = DefaultValueHandling.Ignore, NullValueHandling = NullValueHandling.Ignore }));
+                cmd.Parameters.AddWithValue("@result_type", objIn2.ColObj.ResultType);
+                cmd.Parameters.AddWithValue("@run_id_2", objIn2.RunId);
+                cmd.Parameters.AddWithValue("@row_key_2", CryptoHelpers.CreateHash(JsonConvert.SerializeObject(objIn2.ColObj)));
+                cmd.Parameters.AddWithValue("@identity_2", objIn2.ColObj.Identity);
+                cmd.Parameters.AddWithValue("@serialized_2", JsonConvert.SerializeObject(objIn2.ColObj, Formatting.None, new JsonSerializerSettings() { DefaultValueHandling = DefaultValueHandling.Ignore, NullValueHandling = NullValueHandling.Ignore }));
+                cmd.Parameters.AddWithValue("@result_type_2", objIn2.ColObj.ResultType);
+                cmd.ExecuteNonQuery();
+            }
+            catch (SqliteException e)
+            {
+                Log.Debug(exception: e, $"Error writing {objIn.ColObj.Identity} to database.");
+            }
+            catch (NullReferenceException)
+            {
+                Log.Debug($"Was this a valid WriteObject? It looked null. {JsonConvert.SerializeObject(objIn)}");
+            }
+        }
+
+        public static void WriteTen()
+        {
+            WriteQueue.TryDequeue(out WriteObject objIn);
+            WriteQueue.TryDequeue(out WriteObject objIn2);
+            WriteQueue.TryDequeue(out WriteObject objIn3);
+            WriteQueue.TryDequeue(out WriteObject objIn4);
+            WriteQueue.TryDequeue(out WriteObject objIn5);
+            WriteQueue.TryDequeue(out WriteObject objIn6);
+            WriteQueue.TryDequeue(out WriteObject objIn7);
+            WriteQueue.TryDequeue(out WriteObject objIn8);
+            WriteQueue.TryDequeue(out WriteObject objIn9);
+            WriteQueue.TryDequeue(out WriteObject objIn10);
+
+            try
+            {
+                using var cmd = new SqliteCommand(SQL_INSERT_COLLECT_10_RESULT, Connection, Transaction);
+                cmd.Parameters.AddWithValue("@run_id", objIn.RunId);
+                cmd.Parameters.AddWithValue("@row_key", CryptoHelpers.CreateHash(JsonConvert.SerializeObject(objIn.ColObj)));
+                cmd.Parameters.AddWithValue("@identity", objIn.ColObj.Identity);
+                cmd.Parameters.AddWithValue("@serialized", JsonConvert.SerializeObject(objIn.ColObj, Formatting.None, new JsonSerializerSettings() { DefaultValueHandling = DefaultValueHandling.Ignore, NullValueHandling = NullValueHandling.Ignore }));
+                cmd.Parameters.AddWithValue("@result_type", objIn2.ColObj.ResultType);
+
+                cmd.Parameters.AddWithValue("@run_id_2", objIn2.RunId);
+                cmd.Parameters.AddWithValue("@row_key_2", CryptoHelpers.CreateHash(JsonConvert.SerializeObject(objIn2.ColObj)));
+                cmd.Parameters.AddWithValue("@identity_2", objIn2.ColObj.Identity);
+                cmd.Parameters.AddWithValue("@serialized_2", JsonConvert.SerializeObject(objIn2.ColObj, Formatting.None, new JsonSerializerSettings() { DefaultValueHandling = DefaultValueHandling.Ignore, NullValueHandling = NullValueHandling.Ignore }));
+                cmd.Parameters.AddWithValue("@result_type_2", objIn2.ColObj.ResultType);
+
+                cmd.Parameters.AddWithValue("@run_id_3", objIn3.RunId);
+                cmd.Parameters.AddWithValue("@row_key_3", CryptoHelpers.CreateHash(JsonConvert.SerializeObject(objIn3.ColObj)));
+                cmd.Parameters.AddWithValue("@identity_3", objIn3.ColObj.Identity);
+                cmd.Parameters.AddWithValue("@serialized_3", JsonConvert.SerializeObject(objIn3.ColObj, Formatting.None, new JsonSerializerSettings() { DefaultValueHandling = DefaultValueHandling.Ignore, NullValueHandling = NullValueHandling.Ignore }));
+                cmd.Parameters.AddWithValue("@result_type_3", objIn3.ColObj.ResultType);
+
+                cmd.Parameters.AddWithValue("@run_id_4", objIn4.RunId);
+                cmd.Parameters.AddWithValue("@row_key_4", CryptoHelpers.CreateHash(JsonConvert.SerializeObject(objIn4.ColObj)));
+                cmd.Parameters.AddWithValue("@identity_4", objIn4.ColObj.Identity);
+                cmd.Parameters.AddWithValue("@serialized_4", JsonConvert.SerializeObject(objIn4.ColObj, Formatting.None, new JsonSerializerSettings() { DefaultValueHandling = DefaultValueHandling.Ignore, NullValueHandling = NullValueHandling.Ignore }));
+                cmd.Parameters.AddWithValue("@result_type_4", objIn4.ColObj.ResultType);
+
+                cmd.Parameters.AddWithValue("@run_id_5", objIn5.RunId);
+                cmd.Parameters.AddWithValue("@row_key_5", CryptoHelpers.CreateHash(JsonConvert.SerializeObject(objIn5.ColObj)));
+                cmd.Parameters.AddWithValue("@identity_5", objIn5.ColObj.Identity);
+                cmd.Parameters.AddWithValue("@serialized_5", JsonConvert.SerializeObject(objIn5.ColObj, Formatting.None, new JsonSerializerSettings() { DefaultValueHandling = DefaultValueHandling.Ignore, NullValueHandling = NullValueHandling.Ignore }));
+                cmd.Parameters.AddWithValue("@result_type_5", objIn5.ColObj.ResultType);
+
+                cmd.Parameters.AddWithValue("@run_id_6", objIn6.RunId);
+                cmd.Parameters.AddWithValue("@row_key_6", CryptoHelpers.CreateHash(JsonConvert.SerializeObject(objIn6.ColObj)));
+                cmd.Parameters.AddWithValue("@identity_6", objIn6.ColObj.Identity);
+                cmd.Parameters.AddWithValue("@serialized_6", JsonConvert.SerializeObject(objIn6.ColObj, Formatting.None, new JsonSerializerSettings() { DefaultValueHandling = DefaultValueHandling.Ignore, NullValueHandling = NullValueHandling.Ignore }));
+                cmd.Parameters.AddWithValue("@result_type_6", objIn6.ColObj.ResultType);
+
+                cmd.Parameters.AddWithValue("@run_id_7", objIn7.RunId);
+                cmd.Parameters.AddWithValue("@row_key_7", CryptoHelpers.CreateHash(JsonConvert.SerializeObject(objIn7.ColObj)));
+                cmd.Parameters.AddWithValue("@identity_7", objIn7.ColObj.Identity);
+                cmd.Parameters.AddWithValue("@serialized_7", JsonConvert.SerializeObject(objIn7.ColObj, Formatting.None, new JsonSerializerSettings() { DefaultValueHandling = DefaultValueHandling.Ignore, NullValueHandling = NullValueHandling.Ignore }));
+                cmd.Parameters.AddWithValue("@result_type_7", objIn7.ColObj.ResultType);
+
+                cmd.Parameters.AddWithValue("@run_id_8", objIn8.RunId);
+                cmd.Parameters.AddWithValue("@row_key_8", CryptoHelpers.CreateHash(JsonConvert.SerializeObject(objIn8.ColObj)));
+                cmd.Parameters.AddWithValue("@identity_8", objIn8.ColObj.Identity);
+                cmd.Parameters.AddWithValue("@serialized_8", JsonConvert.SerializeObject(objIn8.ColObj, Formatting.None, new JsonSerializerSettings() { DefaultValueHandling = DefaultValueHandling.Ignore, NullValueHandling = NullValueHandling.Ignore }));
+                cmd.Parameters.AddWithValue("@result_type_8", objIn8.ColObj.ResultType);
+
+                cmd.Parameters.AddWithValue("@run_id_9", objIn9.RunId);
+                cmd.Parameters.AddWithValue("@row_key_9", CryptoHelpers.CreateHash(JsonConvert.SerializeObject(objIn9.ColObj)));
+                cmd.Parameters.AddWithValue("@identity_9", objIn9.ColObj.Identity);
+                cmd.Parameters.AddWithValue("@serialized_9", JsonConvert.SerializeObject(objIn9.ColObj, Formatting.None, new JsonSerializerSettings() { DefaultValueHandling = DefaultValueHandling.Ignore, NullValueHandling = NullValueHandling.Ignore }));
+                cmd.Parameters.AddWithValue("@result_type_9", objIn9.ColObj.ResultType);
+
+                cmd.Parameters.AddWithValue("@run_id_10", objIn10.RunId);
+                cmd.Parameters.AddWithValue("@row_key_10", CryptoHelpers.CreateHash(JsonConvert.SerializeObject(objIn10.ColObj)));
+                cmd.Parameters.AddWithValue("@identity_10", objIn10.ColObj.Identity);
+                cmd.Parameters.AddWithValue("@serialized_10", JsonConvert.SerializeObject(objIn10.ColObj, Formatting.None, new JsonSerializerSettings() { DefaultValueHandling = DefaultValueHandling.Ignore, NullValueHandling = NullValueHandling.Ignore }));
+                cmd.Parameters.AddWithValue("@result_type_10", objIn10.ColObj.ResultType);
+                cmd.ExecuteNonQuery();
+            }
+            catch (SqliteException e)
+            {
+                Log.Debug(exception: e, $"Error writing {objIn.ColObj.Identity} to database.");
             }
             catch (NullReferenceException)
             {

@@ -1,5 +1,8 @@
 ﻿// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
+using Microsoft.Win32;
+using Microsoft.Win32.SafeHandles;
+using Serilog;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -626,6 +629,86 @@ namespace AttackSurfaceAnalyzer.Utils
             {
                 CloseHandle(h);
             }
+        }
+
+        [Flags]
+        public enum RegistryAccessMask
+        {
+            QueryValue = 0x0001,
+            SetValue = 0x0002,
+            CreateSubKey = 0x0004,
+            EnumerateSubKeys = 0x0008,
+            Notify = 0x0010,
+            CreateLink = 0x0020,
+            WoW6432 = 0x0200,
+            Wow6464 = 0x0100,
+            Write = 0x20006,
+            Read = 0x20019,
+            Execute = 0x20019,
+            AllAccess = 0xF003F
+        }
+
+        struct KEY_CONTROL_FLAGS_INFO_W7  // KeyFlagsInformation for Win7
+        {
+            ulong ControlFlags[3];
+        };
+
+        [DllImport("wdm.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        public static extern IntPtr ZwQueryKey(
+                UIntPtr hKey,
+                uint KeyInformationClass,
+                out UIntPtr KeyInformation,
+                ulong Length,
+                out UIntPtr ResultLength);
+
+        [DllImport("advapi32.dll", CharSet = CharSet.Unicode)]
+        public static extern int RegOpenKeyEx(
+           UIntPtr hKey,
+           string subKey,
+           int ulOptions,
+           int samDesired,
+           out UIntPtr hkResult);
+
+        private const uint REG_OPTION_OPEN_LINK = 0x0008;
+        private const uint KEY_CTRL_FL_W7_01__IS_VOLATILE = 0x01;
+        private const uint KEY_CTRL_FL_W7_01__SYM_LINK = 0x02;
+
+        static Dictionary<RegistryHive, UIntPtr> _hiveKeys = new Dictionary<RegistryHive, UIntPtr> {
+            { RegistryHive.ClassesRoot, new UIntPtr(0x80000000u) },
+            { RegistryHive.CurrentConfig, new UIntPtr(0x80000005u) },
+            { RegistryHive.CurrentUser, new UIntPtr(0x80000001u) },
+            //{ RegistryHive.DynData, new UIntPtr(0x80000006u) },
+            { RegistryHive.LocalMachine, new UIntPtr(0x80000002u) },
+            { RegistryHive.PerformanceData, new UIntPtr(0x80000004u) },
+            { RegistryHive.Users, new UIntPtr(0x80000003u) } 
+        };
+
+        public static bool IsKeyLinkOrVolatile(RegistryHive Hive, string Key)
+        {
+            SafeRegistryHandle keyHandlePointer;
+            int result = RegOpenKeyEx(_hiveKeys[Hive], Key, REG_OPTION_OPEN_LINK, RegistryAccessMask.Read, out keyHandlePointer);
+            if (result == 0)
+            {
+                ULONG cb;
+                KEY_CONTROL_FLAGS_INFO_W7 kcf;
+
+                if (0 <= ZwQueryKey(keyHandlePointer, KeyFlagsInformation, &kcf, sizeof(kcf), &cb))
+                {
+                    if (kcf.ControlFlags[1] & KEY_CTRL_FL_W7_01__IS_VOLATILE)
+                    {
+                        Log.Debug("key is volatile\n");
+                        return true;
+                    }
+
+                    if (kcf.ControlFlags[1] & KEY_CTRL_FL_W7_01__SYM_LINK)
+                    {
+                        Log.Debug("key is link\n");
+                        return true;
+                    }
+                }
+                RegCloseKey(hKey);
+            }
+            return false;
         }
     }
 }

@@ -63,13 +63,14 @@ stages:
         buildType: 'current'
         downloadType: 'specific'
         itemPattern: 'UNSIGNED_BINARIES/*.zip'
-        downloadPath: '$(System.BinariesDirectory)'
+        downloadPath: '$(build.binariesdirectory)'
 
     - task: CmdLine@2
       enabled: true
       displayName: 'Unzip Unsigned Binaries'
       inputs:
         script: |
+          ls -l $BIN_DIR
           unzip $BIN_DIR/UNSIGNED_BINARIES/Asa.zip $BIN_DIR
           rm -r $BIN_DIR/UNSIGNED_BINARIES
       env:

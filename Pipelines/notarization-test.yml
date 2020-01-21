@@ -70,7 +70,7 @@ stages:
       displayName: 'Unzip Unsigned Binaries'
       inputs:
         script: |
-          unzip $BIN_DIR/UNSIGNED_BINARIES/Asa.zip $BIN_DIR
+          unzip $BIN_DIR/UNSIGNED_BINARIES/Asa.zip -d $BIN_DIR
           rm -r $BIN_DIR/UNSIGNED_BINARIES
           ls -l $BIN_DIR
       env:

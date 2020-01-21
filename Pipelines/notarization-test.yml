@@ -48,7 +48,7 @@ stages:
       inputs:
         ConnectedServiceName: 'CodeSignforATSAN'
         FolderPath: '$(build.binariesdirectory)/macos/Asa'
-        Pattern: 'Asa, Asa.dll, AsaLib.dll, Asa.Views.dll'
+        Pattern: 'Asa,Asa.dll,AsaLib.dll,Asa.Views.dll'
         signConfigType: 'inlineSignParams'
         inlineOperation: |
           ​​​​​​​​​"SigningInfo" : {

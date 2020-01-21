@@ -71,8 +71,10 @@ stages:
       inputs:
         script: |
           cd $BIN_DIR
-          unzip Asa.zip
-          rm Asa.zip
+          mv ./UNSIGNED_BINARIES/Asa.zip .
+          rmdir ./UNSIGNED_BINARIES
+          unzip ./Asa.zip
+          rm ./Asa.zip
       env:
         BIN_DIR: $(build.binariesdirectory)
 

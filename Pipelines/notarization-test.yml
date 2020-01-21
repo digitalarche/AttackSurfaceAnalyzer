@@ -16,33 +16,6 @@ variables:
   buildConfiguration: 'Release'
 
 stages:
-- stage: Test
-  jobs:
-  - job: Windows
-    pool:
-      vmImage: 'windows-latest'
-
-    steps:
-    - script: 'dotnet tool install -g nbgv'
-      displayName: 'Install GitVersioning'
-      
-    - task: UseDotNet@2
-      inputs:
-        packageType: 'sdk'
-        version: '3.1.100'
-
-    - task: DotNetCoreCLI@2
-      displayName: 'Build Tests'
-      inputs:
-        projects: 'AsaTests/AsaTests.csproj'
-        arguments: '--configuration $(BuildConfiguration) --output $(build.binariesdirectory)/Tests'
-
-    - task: VSTest@2
-      displayName: 'Run Tests'
-      inputs:
-        testAssemblyVer2: AsaTests.dll
-        searchFolder: '$(build.binariesdirectory)/Tests'
-
 - stage: Build
   jobs:
   - job: Windows

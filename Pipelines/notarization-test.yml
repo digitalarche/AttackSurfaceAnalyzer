@@ -42,13 +42,22 @@ stages:
         packageType: 'sdk'
         version: '2.x'
 
+    - task: CmdLine@2
+      enabled: true
+      displayName: 'Check Folder Contents'
+      inputs:
+        script: |
+          ls -l $BIN_DIR/macos/Asa
+      env:
+        BIN_DIR: $(build.binariesdirectory)
+
     - task: EsrpCodeSigning@1
       enabled: true
       displayName: ESRP Sign & Harden
       inputs:
         ConnectedServiceName: 'CodeSignforATSAN'
-        FolderPath: '$(build.binariesdirectory)\macos\Asa'
-        Pattern: 'Asa,Asa.dll,AsaLib.dll,Asa.Views.dll'
+        FolderPath: '$(build.binariesdirectory)/macos/Asa'
+        Pattern: 'Asa.dll'
         signConfigType: 'inlineSignParams'
         inlineOperation: |
           ​​​​​​​​​"SigningInfo" : {

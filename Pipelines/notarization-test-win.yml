@@ -1,0 +1,180 @@
+name: ASA Notarization Test Win
+
+trigger:
+  batch: true
+  paths:
+    include:
+    - Asa
+    - Lib
+  branches:
+    include:
+    - da/notarization-test
+
+variables:
+  solution: '**/*.sln'
+  buildPlatform: 'Any CPU'
+  buildConfiguration: 'Release'
+
+stages:
+- stage: Build
+  jobs:
+  - job: Mac_Build
+    pool:
+        vmImage: 'macOS-latest'
+    steps:
+    - script: 'dotnet tool install -g nbgv'
+      displayName: 'Install GitVersioning'
+    - task: UseDotNet@2
+      inputs:
+        packageType: 'sdk'
+        version: '3.x'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Publish ASA macOS'
+      inputs:
+          command: publish
+          projects: 'Asa/Asa.csproj'
+          arguments: '--configuration $(BuildConfiguration) --output $(build.binariesdirectory)/macos -r osx-x64'
+          zipAfterPublish: true
+
+    - task: CmdLine@2
+      enabled: false
+      displayName: 'Check Folder Contents'
+      inputs:
+        script: |
+          ls -l $BIN_DIR
+          ls -l $BIN_DIR/macos
+      env:
+        BIN_DIR: $(build.binariesdirectory)
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish Build Artifacts'
+      inputs:
+        PathtoPublish: '$(build.binariesdirectory)/macos/Asa.zip'
+        ArtifactName: 'UNSIGNED_BINARIES'
+
+  - job: Mac_Sign
+    dependsOn: Mac_Build
+    pool:
+        vmImage: 'macOS-latest'
+    steps:
+    - task: DownloadBuildArtifacts@0
+      inputs:
+        buildType: 'current'
+        downloadType: 'specific'
+        itemPattern: 'UNSIGNED_BINARIES/*.zip'
+        downloadPath: '$(build.binariesdirectory)'
+
+    - task: CmdLine@2
+      enabled: true
+      displayName: 'Unzip Unsigned Binaries'
+      inputs:
+        script: |
+          unzip $BIN_DIR/UNSIGNED_BINARIES/Asa.zip -d $BIN_DIR
+          rm -r $BIN_DIR/UNSIGNED_BINARIES
+          ls -l $BIN_DIR
+      env:
+        BIN_DIR: $(build.binariesdirectory)
+
+    - task: UseDotNet@2
+      enabled: true
+      inputs:
+        packageType: 'sdk'
+        version: '2.x'
+
+    - task: EsrpCodeSigning@1
+      enabled: true
+      displayName: ESRP Sign & Harden
+      inputs:
+        ConnectedServiceName: 'CodeSignforATSAN'
+        signType: regularSigning
+        FolderPath: '$(build.binariesdirectory)/'
+        batchSignPolicyFile: '/'
+        ciPolicyFile: '/'
+        Pattern: 'Asa'
+        signConfigType: 'inlineSignParams'
+        inlineOperation: |
+          ​​​​​​​​​"SigningInfo" : {
+              "Operations" : [
+                  {
+                      "KeyCode" : "CP-401337-Apple",
+                      "OperationCode" : "MacAppDeveloperSign",
+                      "Parameters" : { "Hardening" : "--options=runtime" },
+                      "ToolName" : "sign",
+                      "ToolVersion" : "1.0"
+                  }
+              ]
+          }
+        SessionTimeout: '60'
+        MaxConcurrency: '50'
+        MaxRetryAttempts: '5'
+
+    - task: CmdLine@2
+      displayName: 'Prepare Artifacts'
+      inputs:
+        script: |
+          VERSION="$(nbgv get-version -v AssemblyInformationalVersion | cut -d'+' -f 1)"
+
+          mkdir $BIN_DIR/Asa-macos-$VERSION
+          mv $BIN_DIR/macos/Asa $BIN_DIR/Asa-macos-$VERSION/res/
+
+          cp $SRC_DIR/Asa/AsaLaunch.sh $BIN_DIR/Asa-macos-$VERSION/AsaLaunch.sh
+          cp $SRC_DIR/Asa/AsaLaunchGui.sh $BIN_DIR/Asa-macos-$VERSION/AsaLaunchGui.sh
+
+          chmod +x $BIN_DIR/Asa-macos-$VERSION/AsaLaunch.sh
+          chmod +x $BIN_DIR/Asa-macos-$VERSION/AsaLaunchGui.sh
+          chmod +x $BIN_DIR/Asa-macos-$VERSION/res/Asa
+
+          cd $BIN_DIR
+          tar -czvf $ART_DIR/Asa-macos-$VERSION.tar.gz Asa-macos-$VERSION
+
+          sha256sum $ART_DIR/Asa-macos-$VERSION.tar.gz | awk ' { n=split($2, a, "/"); $2 = a[n]; print; } ' OFS='\t' >> $BIN_DIR/HASHES_MAC.txt
+      env:
+        BIN_DIR: $(build.binariesdirectory)
+        ART_DIR: $(build.artifactstagingdirectory)
+        SRC_DIR: $(build.sourcesdirectory)
+
+    - task: CmdLine@2
+      enabled: true
+      displayName: 'Check Folder Contents'
+      inputs:
+        script: |
+          ls -l $ART_DIR
+      env:
+        ART_DIR: $(build.artifactstagingdirectory)
+
+    - task: EsrpCodeSigning@1
+      enabled: false
+      displayName: ESRP MacOS Notarization
+      inputs:
+        ConnectedServiceName: 'CodeSignforATSAN'
+        FolderPath: '$(build.artifactstagingdirectory)'
+        Pattern: '*.tar.gz'
+        signConfigType: 'inlineSignParams'
+        inlineOperation: |
+          ​​​​​​​​​"SigningInfo" : {
+              "Operations" : [
+                  {
+                      "KeyCode" : "CP-401337-Apple",
+                      "OperationCode" : "MacAppNotarize",
+                      "Parameters" : { "BundleId" : "$(bundle_id)" },
+                      "ToolName" : "sign",
+                      "ToolVersion" : "1.0"
+                  }
+              ]
+          }
+        SessionTimeout: '120'
+        MaxConcurrency: '50'
+        MaxRetryAttempts: '5'
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish HASHES'
+      inputs:
+        PathtoPublish: '$(build.binariesdirectory)/HASHES_MAC.txt'
+        ArtifactName: 'HASHES'
+    
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish Build Artifacts'
+      inputs:
+        PathtoPublish: '$(build.artifactstagingdirectory)/'
+        ArtifactName: 'BINARIES'

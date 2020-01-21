@@ -27,7 +27,7 @@ stages:
     - task: UseDotNet@2
       inputs:
         packageType: 'sdk'
-        version: '3.1.100'
+        version: '3.x'
 
     - task: DotNetCoreCLI@2
       displayName: 'Publish ASA macOS'
@@ -38,18 +38,10 @@ stages:
           zipAfterPublish: false
 
     - task: UseDotNet@2
+      enabled: false
       inputs:
         packageType: 'sdk'
         version: '2.x'
-
-    - task: CmdLine@2
-      enabled: true
-      displayName: 'Check Folder Contents'
-      inputs:
-        script: |
-          ls -l $BIN_DIR/macos/Asa
-      env:
-        BIN_DIR: $(build.binariesdirectory)
 
     - task: EsrpCodeSigning@1
       enabled: true
@@ -74,7 +66,6 @@ stages:
         SessionTimeout: '60'
         MaxConcurrency: '50'
         MaxRetryAttempts: '5'
-        VerboseLogin: true
 
     - task: CmdLine@2
       displayName: 'Prepare Artifacts'

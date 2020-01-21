@@ -37,22 +37,13 @@ stages:
           arguments: '--configuration $(BuildConfiguration) --output $(build.binariesdirectory)/macos -r osx-x64'
           zipAfterPublish: false
 
-    - task: CmdLine@2
-      displayName: 'Check Folder Contents'
-      inputs:
-        script: |
-          ls -l $BIN_DIR/macos
-          ls -l $BIN_DIR/macos/Asa
-      env:
-        BIN_DIR: $(build.binariesdirectory)
-
     - task: EsrpCodeSigning@1
-      enabled: false
+      enabled: true
       displayName: ESRP Sign & Harden
       inputs:
         ConnectedServiceName: 'CodeSignforATSAN'
-        FolderPath: 'fixme'
-        Pattern: 'fixme'
+        FolderPath: '$(build.binariesdirectory)/macos/Asa'
+        Pattern: 'Asa, Asa.dll, AsaLib.dll, Asa.Views.dll'
         signConfigType: 'inlineSignParams'
         inlineOperation: |
           ​​​​​​​​​"SigningInfo" : {
@@ -95,13 +86,22 @@ stages:
         ART_DIR: $(build.artifactstagingdirectory)
         SRC_DIR: $(build.sourcesdirectory)
 
+    - task: CmdLine@2
+      enabled: true
+      displayName: 'Check Folder Contents'
+      inputs:
+        script: |
+          ls -l $ART_DIR
+      env:
+        ART_DIR: $(build.artifactstagingdirectory)
+
     - task: EsrpCodeSigning@1
       enabled: false
       displayName: ESRP MacOS Notarization
       inputs:
         ConnectedServiceName: 'CodeSignforATSAN'
-        FolderPath: 'fixme'
-        Pattern: 'fixme'
+        FolderPath: '$(build.artifactstagingdirectory)'
+        Pattern: '*.tar.gz'
         signConfigType: 'inlineSignParams'
         inlineOperation: |
           ​​​​​​​​​"SigningInfo" : {

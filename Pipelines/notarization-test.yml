@@ -54,9 +54,28 @@ stages:
         ArtifactName: 'UNSIGNED_BINARIES'
 
   - job: Mac_Sign
+    dependsOn: Mac_Build
     pool:
         vmImage: 'macOS-latest'
     steps:
+    - task: DownloadBuildArtifacts@0
+      inputs:
+        buildType: 'current'
+        downloadType: 'specific'
+        itemPattern: '*.zip'
+        downloadPath: '$(System.BinariesDirectory)'
+
+    - task: CmdLine@2
+      enabled: true
+      displayName: 'Unzip Unsigned Binaries'
+      inputs:
+        script: |
+          cd $BIN_DIR
+          unzip Asa.zip
+          rm Asa.zip
+      env:
+        BIN_DIR: $(build.binariesdirectory)
+
     - task: UseDotNet@2
       enabled: true
       inputs:
@@ -68,7 +87,7 @@ stages:
       displayName: ESRP Sign & Harden
       inputs:
         ConnectedServiceName: 'CodeSignforATSAN'
-        FolderPath: 'fixme'
+        FolderPath: '$(build.binariesdirectory)'
         Pattern: 'Asa.dll'
         signConfigType: 'inlineSignParams'
         inlineOperation: |

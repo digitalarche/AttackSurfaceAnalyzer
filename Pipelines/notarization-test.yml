@@ -76,15 +76,6 @@ stages:
       env:
         BIN_DIR: $(build.binariesdirectory)
 
-    - task: CmdLine@2
-      enabled: true
-      displayName: 'Check Folder Contents'
-      inputs:
-        script: |
-          ls -l $BIN_DIR
-      env:
-        BIN_DIR: $(build.binariesdirectory)
-
     - task: UseDotNet@2
       enabled: true
       inputs:
@@ -96,8 +87,11 @@ stages:
       displayName: ESRP Sign & Harden
       inputs:
         ConnectedServiceName: 'CodeSignforATSAN'
-        FolderPath: '$(build.binariesdirectory)'
-        Pattern: 'Asa.dll'
+        signType: regularSigning
+        FolderPath: '$(build.binariesdirectory)/'
+        batchSignPolicyFile: '/'
+        ciPolicyFile: '/'
+        Pattern: 'Asa'
         signConfigType: 'inlineSignParams'
         inlineOperation: |
           ​​​​​​​​​"SigningInfo" : {

@@ -326,7 +326,7 @@ stages:
       inputs:
         PathtoPublish: '$(build.artifactstagingdirectory)/'
         ArtifactName: 'BINARIES'
-		
+
 - stage: Hashes
   jobs:
   - job: Sign

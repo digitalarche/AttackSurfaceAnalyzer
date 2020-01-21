@@ -62,7 +62,7 @@ stages:
       inputs:
         buildType: 'current'
         downloadType: 'specific'
-        itemPattern: '*.zip'
+        itemPattern: 'Asa.zip'
         downloadPath: '$(System.BinariesDirectory)'
 
     - task: CmdLine@2

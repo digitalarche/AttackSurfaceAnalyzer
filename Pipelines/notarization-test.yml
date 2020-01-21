@@ -38,7 +38,7 @@ stages:
           zipAfterPublish: true
 
     - task: CmdLine@2
-      enabled: true
+      enabled: false
       displayName: 'Check Folder Contents'
       inputs:
         script: |
@@ -70,11 +70,8 @@ stages:
       displayName: 'Unzip Unsigned Binaries'
       inputs:
         script: |
-          cd $BIN_DIR
-          mv ./UNSIGNED_BINARIES/Asa.zip .
-          rmdir ./UNSIGNED_BINARIES
-          unzip ./Asa.zip
-          rm ./Asa.zip
+          unzip $BIN_DIR/UNSIGNED_BINARIES/Asa.zip $BIN_DIR
+          rm -r $BIN_DIR/UNSIGNED_BINARIES
       env:
         BIN_DIR: $(build.binariesdirectory)
 

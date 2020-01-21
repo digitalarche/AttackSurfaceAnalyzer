@@ -37,6 +37,11 @@ stages:
           arguments: '--configuration $(BuildConfiguration) --output $(build.binariesdirectory)/macos -r osx-x64'
           zipAfterPublish: false
 
+    - task: UseDotNet@2
+      inputs:
+        packageType: 'sdk'
+        version: '2.x'
+
     - task: EsrpCodeSigning@1
       enabled: true
       displayName: ESRP Sign & Harden
@@ -62,6 +67,7 @@ stages:
         MaxRetryAttempts: '5'
 
     - task: CmdLine@2
+      displayName: 'Prepare Artifacts'
       inputs:
         script: |
           VERSION="$(nbgv get-version -v AssemblyInformationalVersion | cut -d'+' -f 1)"
@@ -80,7 +86,6 @@ stages:
           tar -czvf $ART_DIR/Asa-macos-$VERSION.tar.gz Asa-macos-$VERSION
 
           sha256sum $ART_DIR/Asa-macos-$VERSION.tar.gz | awk ' { n=split($2, a, "/"); $2 = a[n]; print; } ' OFS='\t' >> $BIN_DIR/HASHES_MAC.txt
-      displayName: 'Prepare Artifacts'
       env:
         BIN_DIR: $(build.binariesdirectory)
         ART_DIR: $(build.artifactstagingdirectory)

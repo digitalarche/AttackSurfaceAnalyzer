@@ -18,7 +18,7 @@ variables:
 stages:
 - stage: Build
   jobs:
-  - job: Mac
+  - job: Mac_Build
     pool:
         vmImage: 'macOS-latest'
     steps:
@@ -35,10 +35,30 @@ stages:
           command: publish
           projects: 'Asa/Asa.csproj'
           arguments: '--configuration $(BuildConfiguration) --output $(build.binariesdirectory)/macos -r osx-x64'
-          zipAfterPublish: false
+          zipAfterPublish: true
 
+    - task: CmdLine@2
+      enabled: true
+      displayName: 'Check Folder Contents'
+      inputs:
+        script: |
+          ls -l $BIN_DIR
+          ls -l $BIN_DIR/macos
+      env:
+        BIN_DIR: $(build.binariesdirectory)
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish Build Artifacts'
+      inputs:
+        PathtoPublish: '$(build.binariesdirectory)/fixme'
+        ArtifactName: 'BINARIES'
+
+  - job: Mac_Sign
+    pool:
+        vmImage: 'macOS-latest'
+    steps:
     - task: UseDotNet@2
-      enabled: false
+      enabled: true
       inputs:
         packageType: 'sdk'
         version: '2.x'

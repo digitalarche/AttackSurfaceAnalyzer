@@ -8,7 +8,7 @@ trigger:
     - Lib
   branches:
     include:
-    - release/v2.1
+    - da/notarization-test
 
 variables:
   solution: '**/*.sln'
@@ -70,9 +70,9 @@ stages:
       displayName: 'Unzip Unsigned Binaries'
       inputs:
         script: |
-          ls -l $BIN_DIR
           unzip $BIN_DIR/UNSIGNED_BINARIES/Asa.zip $BIN_DIR
           rm -r $BIN_DIR/UNSIGNED_BINARIES
+          ls -l $BIN_DIR
       env:
         BIN_DIR: $(build.binariesdirectory)
 

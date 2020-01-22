@@ -18,7 +18,7 @@ variables:
 stages:
 - stage: Build
   jobs:
-  - job: Mac_Build
+  - job: Mac
     pool:
         vmImage: 'macOS-latest'
     steps:
@@ -27,7 +27,7 @@ stages:
     - task: UseDotNet@2
       inputs:
         packageType: 'sdk'
-        version: '3.x'
+        version: '3.1.100'
 
     - task: DotNetCoreCLI@2
       displayName: 'Publish ASA macOS'
@@ -35,49 +35,9 @@ stages:
           command: publish
           projects: 'Asa/Asa.csproj'
           arguments: '--configuration $(BuildConfiguration) --output $(build.binariesdirectory)/macos -r osx-x64'
-          zipAfterPublish: true
-
-    - task: CmdLine@2
-      enabled: false
-      displayName: 'Check Folder Contents'
-      inputs:
-        script: |
-          ls -l $BIN_DIR
-          ls -l $BIN_DIR/macos
-      env:
-        BIN_DIR: $(build.binariesdirectory)
-
-    - task: PublishBuildArtifacts@1
-      displayName: 'Publish Build Artifacts'
-      inputs:
-        PathtoPublish: '$(build.binariesdirectory)/macos/Asa.zip'
-        ArtifactName: 'UNSIGNED_BINARIES'
-
-  - job: Mac_Sign
-    dependsOn: Mac_Build
-    pool:
-        vmImage: 'macOS-latest'
-    steps:
-    - task: DownloadBuildArtifacts@0
-      inputs:
-        buildType: 'current'
-        downloadType: 'specific'
-        itemPattern: 'UNSIGNED_BINARIES/*.zip'
-        downloadPath: '$(build.binariesdirectory)'
-
-    - task: CmdLine@2
-      enabled: true
-      displayName: 'Unzip Unsigned Binaries'
-      inputs:
-        script: |
-          unzip $BIN_DIR/UNSIGNED_BINARIES/Asa.zip -d $BIN_DIR
-          rm -r $BIN_DIR/UNSIGNED_BINARIES
-          ls -l $BIN_DIR
-      env:
-        BIN_DIR: $(build.binariesdirectory)
+          zipAfterPublish: false
 
     - task: UseDotNet@2
-      enabled: true
       inputs:
         packageType: 'sdk'
         version: '2.x'
@@ -87,24 +47,19 @@ stages:
       displayName: ESRP Sign & Harden
       inputs:
         ConnectedServiceName: 'CodeSignforATSAN'
-        signType: regularSigning
-        FolderPath: '$(build.binariesdirectory)/'
-        batchSignPolicyFile: '/'
-        ciPolicyFile: '/'
-        Pattern: 'Asa'
+        FolderPath: '$(build.binariesdirectory)/macos/Asa'
+        Pattern: 'Asa, Asa.dll, AsaLib.dll, Asa.Views.dll'
         signConfigType: 'inlineSignParams'
         inlineOperation: |
-          ​​​​​​​​​"SigningInfo" : {
-              "Operations" : [
-                  {
-                      "KeyCode" : "CP-401337-Apple",
-                      "OperationCode" : "MacAppDeveloperSign",
-                      "Parameters" : { "Hardening" : "--options=runtime" },
-                      "ToolName" : "sign",
-                      "ToolVersion" : "1.0"
-                  }
-              ]
-          }
+          [
+            {
+              "KeyCode" : "CP-401337-Apple",
+              "OperationCode" : "MacAppDeveloperSign",
+              "Parameters" : { "Hardening" : "--options=runtime" },
+              "ToolName" : "sign",
+              "ToolVersion" : "1.0"
+            }
+          ]
         SessionTimeout: '60'
         MaxConcurrency: '50'
         MaxRetryAttempts: '5'
@@ -133,15 +88,6 @@ stages:
         BIN_DIR: $(build.binariesdirectory)
         ART_DIR: $(build.artifactstagingdirectory)
         SRC_DIR: $(build.sourcesdirectory)
-
-    - task: CmdLine@2
-      enabled: true
-      displayName: 'Check Folder Contents'
-      inputs:
-        script: |
-          ls -l $ART_DIR
-      env:
-        ART_DIR: $(build.artifactstagingdirectory)
 
     - task: EsrpCodeSigning@1
       enabled: false

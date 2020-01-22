@@ -53,31 +53,26 @@ stages:
         PathtoPublish: '$(build.binariesdirectory)/macos/Asa.zip'
         ArtifactName: 'UNSIGNED_BINARIES'
 
-  - job: Mac_Sign
+  - job: Mac_Sign_via_Windows
     dependsOn: Mac_Build
     pool:
-        vmImage: 'macOS-latest'
+        vmImage: 'windows-latest'
     steps:
     - task: DownloadBuildArtifacts@0
       inputs:
         buildType: 'current'
         downloadType: 'specific'
-        itemPattern: 'UNSIGNED_BINARIES/*.zip'
-        downloadPath: '$(build.binariesdirectory)'
+        itemPattern: 'UNSIGNED_BINARIES\Asa.zip'
+        downloadPath: '$(build.stagingdirectory)'
 
-    - task: CmdLine@2
-      enabled: true
-      displayName: 'Unzip Unsigned Binaries'
+    - task: ExtractFiles@1
       inputs:
-        script: |
-          unzip $BIN_DIR/UNSIGNED_BINARIES/Asa.zip -d $BIN_DIR
-          rm -r $BIN_DIR/UNSIGNED_BINARIES
-          ls -l $BIN_DIR
-      env:
-        BIN_DIR: $(build.binariesdirectory)
+        archiveFilePatterns: '$(build.stagingdirectory)\UNSIGNED_BINARIES\Asa.zip'
+        destinationFolder: '$(build.binariesdirectory)'
+        cleanDestinationFolder: true
 
     - task: UseDotNet@2
-      enabled: true
+      enabled: false
       inputs:
         packageType: 'sdk'
         version: '2.x'
@@ -88,9 +83,7 @@ stages:
       inputs:
         ConnectedServiceName: 'CodeSignforATSAN'
         signType: regularSigning
-        FolderPath: '$(build.binariesdirectory)/'
-        batchSignPolicyFile: '/'
-        ciPolicyFile: '/'
+        FolderPath: '$(build.binariesdirectory)'
         Pattern: 'Asa'
         signConfigType: 'inlineSignParams'
         inlineOperation: |
@@ -110,6 +103,7 @@ stages:
         MaxRetryAttempts: '5'
 
     - task: CmdLine@2
+      enabled: false
       displayName: 'Prepare Artifacts'
       inputs:
         script: |
@@ -135,7 +129,7 @@ stages:
         SRC_DIR: $(build.sourcesdirectory)
 
     - task: CmdLine@2
-      enabled: true
+      enabled: false
       displayName: 'Check Folder Contents'
       inputs:
         script: |
@@ -168,12 +162,14 @@ stages:
         MaxRetryAttempts: '5'
 
     - task: PublishBuildArtifacts@1
+      enabled: false
       displayName: 'Publish HASHES'
       inputs:
         PathtoPublish: '$(build.binariesdirectory)/HASHES_MAC.txt'
         ArtifactName: 'HASHES'
     
     - task: PublishBuildArtifacts@1
+      enabled: false
       displayName: 'Publish Build Artifacts'
       inputs:
         PathtoPublish: '$(build.artifactstagingdirectory)/'

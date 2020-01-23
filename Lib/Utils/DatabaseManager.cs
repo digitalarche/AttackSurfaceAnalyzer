@@ -121,6 +121,8 @@ namespace AttackSurfaceAnalyzer.Utils
 
             col.EnsureIndex(x => x.IdentityHash);
             col.EnsureIndex(x => x.InstanceHash);
+            col.EnsureIndex(x => x.ColObj.ResultType);
+            col.EnsureIndex(x => x.RunId);
 
             if (filename != null)
             {

@@ -150,6 +150,14 @@ namespace AttackSurfaceAnalyzer.Objects
             }
         }
 
+        public string RunIdHash
+        {
+            get
+            {
+                return CryptoHelpers.CreateHash(RunId);
+            }
+        }
+
         public string InstanceHash
         {
             get

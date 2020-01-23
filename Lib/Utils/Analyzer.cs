@@ -107,9 +107,8 @@ namespace AttackSurfaceAnalyzer.Utils
             var results = new List<ANALYSIS_RESULT_TYPE>();
             var curFilters = _filters.Where((rule) => (rule.ChangeTypes == null || rule.ChangeTypes.Contains(compareResult.ChangeType))
                                                      && (rule.Platforms == null || rule.Platforms.Contains(OsName))
-                                                     && (rule.ResultType.Equals(compareResult.ResultType)))
-                                                    .ToList();
-            if (curFilters.Count > 0)
+                                                     && (rule.ResultType.Equals(compareResult.ResultType)));
+            if (curFilters.Any())
             {
                 foreach (Rule rule in curFilters)
                 {

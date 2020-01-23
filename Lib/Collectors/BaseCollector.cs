@@ -31,8 +31,6 @@ namespace AttackSurfaceAnalyzer.Collectors
             }
             Start();
 
-            DatabaseManager.BeginTransaction();
-
             var StopWatch = System.Diagnostics.Stopwatch.StartNew();
 
             ExecuteInternal();
@@ -94,7 +92,6 @@ namespace AttackSurfaceAnalyzer.Collectors
                                     t.Milliseconds);
             Log.Debug("Completed flushing in {0}", answer);
 
-            DatabaseManager.Commit();
             Stop();
         }
         public abstract bool CanRunOnPlatform();

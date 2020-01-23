@@ -4,7 +4,7 @@ namespace AttackSurfaceAnalyzer
 {
     public class CommandOptions
     {
-        [Option(Required = false, HelpText = "Name of output database (default: asa.sqlite)", Default = "asa.sqlite")]
+        [Option(Required = false, HelpText = "Name of output database (default: asa.litedb)", Default = "asa.litedb")]
         public string DatabaseFilename { get; set; }
 
         [Option(HelpText = "Show debug logging statements.")]

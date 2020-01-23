@@ -144,7 +144,7 @@ namespace AttackSurfaceAnalyzer.Gui.Controllers
             opts.EnableFirewallCollector = Firewall;
             opts.EnableEventLogCollector = Log;
 
-            opts.DatabaseFilename = DatabaseManager.SqliteFilename;
+            opts.DatabaseFilename = "Asa.litedb";
             opts.FilterLocation = "Use embedded filters.";
 
             foreach (BaseCollector c in AttackSurfaceAnalyzerClient.GetCollectors())

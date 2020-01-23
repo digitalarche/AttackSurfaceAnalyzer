@@ -630,8 +630,6 @@ namespace AttackSurfaceAnalyzer
                 }
             }
 
-            DatabaseManager.Commit();
-
             return returnValue;
         }
 
@@ -757,7 +755,6 @@ namespace AttackSurfaceAnalyzer
                 DatabaseManager.UpdateCompareRun(opts.FirstRunId, opts.SecondRunId, RUN_STATUS.COMPLETED);
             }
 
-            DatabaseManager.Commit();
             AsaTelemetry.TrackEvent("End Command", EndEvent);
             return results;
         }
@@ -815,8 +812,6 @@ namespace AttackSurfaceAnalyzer
 
                 c.StopRun();
             }
-
-            DatabaseManager.Commit();
 
             return 0;
         }
@@ -1003,12 +998,6 @@ namespace AttackSurfaceAnalyzer
             
             Log.Information(Strings.Get("StartingN"), collectors.Count.ToString(CultureInfo.InvariantCulture), Strings.Get("Collectors"));
 
-            Console.CancelKeyPress += delegate {
-                Log.Information("Cancelling collection. Rolling back transaction. Please wait to avoid corrupting database.");
-                DatabaseManager.Transaction.Rollback();
-                Environment.Exit(0);
-            };
-
             Dictionary<string, string> EndEvent = new Dictionary<string, string>();
             foreach (BaseCollector c in collectors)
             {
@@ -1030,7 +1019,6 @@ namespace AttackSurfaceAnalyzer
             }
             AsaTelemetry.TrackEvent("End Command", EndEvent);
 
-            DatabaseManager.Commit();
             return returnValue;
         }
 

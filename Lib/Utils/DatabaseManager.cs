@@ -2,6 +2,7 @@
 // Licensed under the MIT License.
 using AttackSurfaceAnalyzer.Objects;
 using AttackSurfaceAnalyzer.Types;
+using LiteDB;
 using Microsoft.Data.Sqlite;
 using Mono.Unix;
 using Newtonsoft.Json;
@@ -110,8 +111,17 @@ namespace AttackSurfaceAnalyzer.Utils
 
         public static bool FirstRun { get; private set; } = true;
 
+        public static LiteDatabase db;
+
         public static bool Setup(string filename = null)
         {
+            db = new LiteDatabase($"Filename=lite.db;Journal=false;Mode=Exclusive");
+
+            var col = db.GetCollection<WriteObject>("CollectObjects");
+
+            col.EnsureIndex(x => CryptoHelpers.CreateHash(x.ColObj.Identity));
+            //col.EnsureIndex(x => CryptoHelpers.CreateHash(JsonConvert.SerializeObject(x.ColObj)));
+
             if (filename != null)
             {
                 if (_SqliteFilename != filename)
@@ -585,24 +595,39 @@ namespace AttackSurfaceAnalyzer.Utils
 
         public static void WriteNext()
         {
-            WriteQueue.TryDequeue(out WriteObject objIn);
-            try
+            var list = new List<WriteObject>();
+            foreach (var thing in WriteQueue)
             {
-                using var cmd = new SqliteCommand(SQL_INSERT_COLLECT_RESULT, Connection, Transaction);
-                cmd.Parameters.AddWithValue("@run_id", objIn.RunId);
-                cmd.Parameters.AddWithValue("@row_key", CryptoHelpers.CreateHash(JsonConvert.SerializeObject(objIn.ColObj)));
-                cmd.Parameters.AddWithValue("@identity", objIn.ColObj.Identity);
-                cmd.Parameters.AddWithValue("@serialized", JsonConvert.SerializeObject(objIn.ColObj, Formatting.None, new JsonSerializerSettings() { DefaultValueHandling = DefaultValueHandling.Ignore, NullValueHandling = NullValueHandling.Ignore }));
-                cmd.Parameters.AddWithValue("@result_type", objIn.ColObj.ResultType);
-                cmd.ExecuteNonQuery();
+                if (list.Count == 1000)
+                {
+                    break;
+                }
+
+                WriteObject ColObj;
+                WriteQueue.TryDequeue(out ColObj);
+                list.Add(ColObj);
             }
-            catch (SqliteException e)
-            {
-                Log.Debug(exception: e, $"Error writing {objIn.ColObj.Identity} to database.");
-            }
-            catch (NullReferenceException)
-            {
-            }
+
+            var col = db.GetCollection<WriteObject>("CollectObjects");
+            col.InsertBulk(list);
+
+            //try
+            //{
+            //    using var cmd = new SqliteCommand(SQL_INSERT_COLLECT_RESULT, Connection, Transaction);
+            //    cmd.Parameters.AddWithValue("@run_id", objIn.RunId);
+            //    cmd.Parameters.AddWithValue("@row_key", CryptoHelpers.CreateHash(JsonConvert.SerializeObject(objIn.ColObj)));
+            //    cmd.Parameters.AddWithValue("@identity", objIn.ColObj.Identity);
+            //    cmd.Parameters.AddWithValue("@serialized", JsonConvert.SerializeObject(objIn.ColObj, Formatting.None, new JsonSerializerSettings() { DefaultValueHandling = DefaultValueHandling.Ignore, NullValueHandling = NullValueHandling.Ignore }));
+            //    cmd.Parameters.AddWithValue("@result_type", objIn.ColObj.ResultType);
+            //    cmd.ExecuteNonQuery();
+            //}
+            //catch (SqliteException e)
+            //{
+            //    Log.Debug(exception: e, $"Error writing {objIn.ColObj.Identity} to database.");
+            //}
+            //catch (NullReferenceException)
+            //{
+            //}
         }
 
         public static List<RawCollectResult> GetMissingFromFirst(string firstRunId, string secondRunId)

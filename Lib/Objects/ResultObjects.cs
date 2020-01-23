@@ -136,6 +136,7 @@ namespace AttackSurfaceAnalyzer.Objects
 
     public class WriteObject
     {
+        public int Id { get; set; }
         public CollectObject ColObj { get; set; }
         public string RunId { get; set; }
     }

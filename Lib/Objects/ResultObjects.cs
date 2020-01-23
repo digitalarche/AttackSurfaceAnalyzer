@@ -1,6 +1,8 @@
 ﻿// Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 using AttackSurfaceAnalyzer.Types;
+using AttackSurfaceAnalyzer.Utils;
+using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.IO;
 
@@ -139,5 +141,21 @@ namespace AttackSurfaceAnalyzer.Objects
         public int Id { get; set; }
         public CollectObject ColObj { get; set; }
         public string RunId { get; set; }
+
+        public string IdentityHash
+        {
+            get
+            {
+                return CryptoHelpers.CreateHash(ColObj.Identity);
+            }
+        }
+
+        public string InstanceHash
+        {
+            get
+            {
+                return CryptoHelpers.CreateHash(JsonConvert.SerializeObject(ColObj));
+            }
+        }
     }
 }

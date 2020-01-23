@@ -119,8 +119,8 @@ namespace AttackSurfaceAnalyzer.Utils
 
             var col = db.GetCollection<WriteObject>("CollectObjects");
 
-            col.EnsureIndex(x => CryptoHelpers.CreateHash(x.ColObj.Identity));
-            //col.EnsureIndex(x => CryptoHelpers.CreateHash(JsonConvert.SerializeObject(x.ColObj)));
+            col.EnsureIndex(x => x.IdentityHash);
+            col.EnsureIndex(x => x.InstanceHash);
 
             if (filename != null)
             {

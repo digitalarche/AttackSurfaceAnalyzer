@@ -2,6 +2,8 @@
 // Licensed under the MIT License.
 using AttackSurfaceAnalyzer.Objects;
 using AttackSurfaceAnalyzer.Types;
+using Couchbase.Lite;
+using Couchbase.Lite.Query;
 using Microsoft.Data.Sqlite;
 using Mono.Unix;
 using Newtonsoft.Json;
@@ -110,8 +112,23 @@ namespace AttackSurfaceAnalyzer.Utils
 
         public static bool FirstRun { get; private set; } = true;
 
+        public static Database database { get; private set; }
+
         public static bool Setup(string filename = null)
         {
+            // Get the database (and create it if it doesn't exist)
+            database = new Database("mydb");
+
+            var index = IndexBuilder.ValueIndex(
+                ValueIndexItem.Expression(Expression.Property("RunId")),
+                ValueIndexItem.Expression(Expression.Property("ResultType")));
+            database.CreateIndex("RunIdResultTypeIndex", index);
+
+            index = IndexBuilder.ValueIndex(
+                ValueIndexItem.Expression(Expression.Property("RowKey")),
+                ValueIndexItem.Expression(Expression.Property("Identity")));
+            database.CreateIndex("RowKeyIdentityIndex", index);
+
             if (filename != null)
             {
                 if (_SqliteFilename != filename)
@@ -586,23 +603,37 @@ namespace AttackSurfaceAnalyzer.Utils
         public static void WriteNext()
         {
             WriteQueue.TryDequeue(out WriteObject objIn);
-            try
+            // Create a new document (i.e. a record) in the database
+            string id = null;
+            using (var mutableDoc = new MutableDocument())
             {
-                using var cmd = new SqliteCommand(SQL_INSERT_COLLECT_RESULT, Connection, Transaction);
-                cmd.Parameters.AddWithValue("@run_id", objIn.RunId);
-                cmd.Parameters.AddWithValue("@row_key", CryptoHelpers.CreateHash(JsonConvert.SerializeObject(objIn.ColObj)));
-                cmd.Parameters.AddWithValue("@identity", objIn.ColObj.Identity);
-                cmd.Parameters.AddWithValue("@serialized", JsonConvert.SerializeObject(objIn.ColObj, Formatting.None, new JsonSerializerSettings() { DefaultValueHandling = DefaultValueHandling.Ignore, NullValueHandling = NullValueHandling.Ignore }));
-                cmd.Parameters.AddWithValue("@result_type", objIn.ColObj.ResultType);
-                cmd.ExecuteNonQuery();
+                mutableDoc.SetString("RunId", objIn.RunId)
+                    .SetString("RowKey", CryptoHelpers.CreateHash(JsonConvert.SerializeObject(objIn.ColObj)))
+                    .SetString("Identity", objIn.ColObj.Identity)
+                    .SetString("Serialized", JsonConvert.SerializeObject(objIn.ColObj, Formatting.None, new JsonSerializerSettings() { DefaultValueHandling = DefaultValueHandling.Ignore, NullValueHandling = NullValueHandling.Ignore }))
+                    .SetInt("ResultType", (int)objIn.ColObj.ResultType);
+
+                // Save it to the database
+                database.Save(mutableDoc);
             }
-            catch (SqliteException e)
-            {
-                Log.Debug(exception: e, $"Error writing {objIn.ColObj.Identity} to database.");
-            }
-            catch (NullReferenceException)
-            {
-            }
+
+            //try
+            //{
+            //    using var cmd = new SqliteCommand(SQL_INSERT_COLLECT_RESULT, Connection, Transaction);
+            //    cmd.Parameters.AddWithValue("@run_id", objIn.RunId);
+            //    cmd.Parameters.AddWithValue("@row_key", CryptoHelpers.CreateHash(JsonConvert.SerializeObject(objIn.ColObj)));
+            //    cmd.Parameters.AddWithValue("@identity", objIn.ColObj.Identity);
+            //    cmd.Parameters.AddWithValue("@serialized", JsonConvert.SerializeObject(objIn.ColObj, Formatting.None, new JsonSerializerSettings() { DefaultValueHandling = DefaultValueHandling.Ignore, NullValueHandling = NullValueHandling.Ignore }));
+            //    cmd.Parameters.AddWithValue("@result_type", objIn.ColObj.ResultType);
+            //    cmd.ExecuteNonQuery();
+            //}
+            //catch (SqliteException e)
+            //{
+            //    Log.Debug(exception: e, $"Error writing {objIn.ColObj.Identity} to database.");
+            //}
+            //catch (NullReferenceException)
+            //{
+            //}
         }
 
         public static List<RawCollectResult> GetMissingFromFirst(string firstRunId, string secondRunId)

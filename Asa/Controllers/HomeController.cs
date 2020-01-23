@@ -43,11 +43,20 @@ namespace AttackSurfaceAnalyzer.Gui.Controllers
 
         public ActionResult GetMonitorResults(string RunId, int Offset, int NumResults)
         {
-            List<OutputFileMonitorResult> results = DatabaseManager.GetMonitorResults(RunId, Offset, NumResults);
+            List<FileMonitorEvent> results = DatabaseManager.GetMonitorResults(RunId, Offset, NumResults);
             
             Dictionary<string, object> output = new Dictionary<string, object>();
 
-            output["Results"] = results;
+            output["Results"] = results.Select(x => new OutputFileMonitorResult()
+            {
+                ChangeType = x.FMO.ChangeType,
+                Name = x.FMO.Name,
+                OldName = x.FMO.OldName,
+                Path = x.FMO.Path,
+                OldPath = x.FMO.OldPath,
+                RowKey = x.Id.ToString(),
+                Timestamp = x.FMO.Timestamp
+            });
             output["TotalCount"] = DatabaseManager.GetNumMonitorResults(RunId); ;
             output["Offset"] = Offset;
             output["Requested"] = NumResults;
@@ -58,15 +67,15 @@ namespace AttackSurfaceAnalyzer.Gui.Controllers
 
         public ActionResult GetResults(string BaseId, string CompareId, int ResultType, int Offset, int NumResults)
         {
-            List<CompareResult> results = DatabaseManager.GetComparisonResults(AsaHelpers.RunIdsToCompareId(BaseId, CompareId), ResultType, Offset, NumResults);
+            var results = DatabaseManager.GetComparisonResults(BaseId, CompareId, (RESULT_TYPE)ResultType, Offset, NumResults);
 
             Dictionary<string, object> output = new Dictionary<string, object>();
 
             output["Results"] = results;
-            output["TotalCount"] = DatabaseManager.GetComparisonResultsCount(AsaHelpers.RunIdsToCompareId(BaseId, CompareId), ResultType);
+            output["TotalCount"] = DatabaseManager.GetComparisonResultsCount(BaseId, CompareId, ResultType);
             output["Offset"] = Offset;
             output["Requested"] = NumResults;
-            output["Actual"] = results.Count;
+            output["Actual"] = results.Count();
             return Json(JsonConvert.SerializeObject(output));
         }
 

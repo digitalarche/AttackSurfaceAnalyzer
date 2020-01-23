@@ -109,8 +109,6 @@ namespace AttackSurfaceAnalyzer.Utils
         private const string SCHEMA_VERSION = "5";
         private static bool WriterStarted = false;
 
-        public static SqliteConnection Connection { get; private set; }
-
         public static ConcurrentQueue<WriteObject> WriteQueue { get; private set; } = new ConcurrentQueue<WriteObject>();
 
         public static bool FirstRun { get; private set; } = true;
@@ -154,7 +152,7 @@ namespace AttackSurfaceAnalyzer.Utils
                                     t.Minutes,
                                     t.Seconds,
                                     t.Milliseconds);
-            Log.Debug("Completed flushing in {0}", answer);
+            Log.Debug("Completed opening database in {0}", answer);
 
             var col = db.GetCollection<WriteObject>("WriteObjects");
 
@@ -282,7 +280,7 @@ namespace AttackSurfaceAnalyzer.Utils
         {
             var settings = db.GetCollection<Setting>("Settings");
 
-            if (!(settings.Find(x => x.Name.Equals("SchemaVersion") && x.Value.Equals(SCHEMA_VERSION)).Count() > 0))
+            if (!(settings.Find(x => x.Name.Equals("SchemaVersion") && x.Value.Equals(SCHEMA_VERSION)).Any()))
             {
                 Log.Fatal("Schema version of database is {0} but {1} is required. Use config --reset-database to delete the incompatible database.", settings.FindOne(x => x.Name.Equals("SchemaVersion")).Value, SCHEMA_VERSION);
                 Environment.Exit(-1);
@@ -324,28 +322,13 @@ namespace AttackSurfaceAnalyzer.Utils
             return wo.Count(Query.And(Query.EQ("RunId", runId), Query.EQ("ColObj.ResultType", (int)ResultType)));
         }
 
-        public static List<FileMonitorEvent> GetSerializedMonitorResults(string runId)
+        public static IEnumerable<FileMonitorEvent> GetSerializedMonitorResults(string runId)
         {
             List<FileMonitorEvent> records = new List<FileMonitorEvent>();
 
-            //using (var cmd = new SqliteCommand(GET_SERIALIZED_RESULTS, Connection, Transaction))
-                //{
-                //    cmd.Parameters.AddWithValue("@run_id", runId);
-                //    using (var reader = cmd.ExecuteReader())
-                //    {
+            var fme = db.GetCollection<FileMonitorEvent>("FileMonitorEvents");
 
-                //        FileMonitorEvent obj;
-
-                //        while (reader.Read())
-                //        {
-                //            obj = JsonConvert.DeserializeObject<FileMonitorEvent>(reader["serialized"].ToString());
-                //            obj.ChangeType = (CHANGE_TYPE)int.Parse(reader["change_type"].ToString(), CultureInfo.InvariantCulture);
-                //            records.Add(obj);
-                //        }
-                //    }
-                //}
-
-                return records;
+            return fme.Find(x => x.RunId.Equals(runId));
         }
 
         public static void InsertRun(string runId, Dictionary<RESULT_TYPE, bool> dictionary)
@@ -408,77 +391,41 @@ namespace AttackSurfaceAnalyzer.Utils
             col.InsertBulk(list);
         }
 
-        public static List<RawCollectResult> GetMissingFromFirst(string firstRunId, string secondRunId)
+        public static IEnumerable<WriteObject> GetMissingFromFirst(string firstRunId, string secondRunId)
         {
-            var output = new List<RawCollectResult>();
-            return output;
-            //using var cmd = new SqliteCommand(SQL_GET_COLLECT_MISSING_IN_B, Connection, Transaction);
-            //cmd.Parameters.AddWithValue("@first_run_id", firstRunId);
-            //cmd.Parameters.AddWithValue("@second_run_id", secondRunId);
-            //using (var reader = cmd.ExecuteReader())
-            //{
-            //    while (reader.Read())
-            //    {
-            //        output.Add(new RawCollectResult()
-            //        {
-            //            Identity = reader["identity"].ToString(),
-            //            RunId = reader["run_id"].ToString(),
-            //            ResultType = (RESULT_TYPE)Enum.Parse(typeof(RESULT_TYPE), reader["result_type"].ToString()),
-            //            RowKey = reader["row_key"].ToString(),
-            //            Serialized = reader["serialized"].ToString()
-            //        });
-            //    }
-            //}
+            var col = db.GetCollection<WriteObject>("WriteObjects");
 
-            //return output;
+            var firstRun = col.Find(x => x.RunId.Equals(firstRunId));
+            var firstRunIdentities = firstRun.Select(x => x.IdentityHash).ToHashSet();
+            var res = col.Find(x => x.RunId.Equals(secondRunId) && !firstRunIdentities.Contains(x.IdentityHash));
+            if (res == null)
+            {
+                return new List<WriteObject>();
+            }
+            else
+            {
+                return res;
+            }
         }
 
-        public static List<RawModifiedResult> GetModified(string firstRunId, string secondRunId)
+        public static IEnumerable<Tuple<WriteObject,WriteObject>> GetModified(string firstRunId, string secondRunId)
         {
-            var output = new List<RawModifiedResult>();
-            return output;
-            //using var cmd = new SqliteCommand(SQL_GET_COLLECT_MODIFIED, Connection, Transaction);
-            //cmd.Parameters.AddWithValue("@first_run_id", firstRunId);
-            //cmd.Parameters.AddWithValue("@second_run_id", secondRunId);
-            //using (var reader = cmd.ExecuteReader())
-            //{
-            //    while (reader.Read())
-            //    {
-            //        output.Add(new RawModifiedResult()
-            //        {
-            //            First = new RawCollectResult()
-            //            {
-            //                Identity = reader["a_identity"].ToString(),
-            //                RunId = reader["a_run_id"].ToString(),
-            //                ResultType = (RESULT_TYPE)Enum.Parse(typeof(RESULT_TYPE), reader["a_result_type"].ToString()),
-            //                RowKey = reader["a_row_key"].ToString(),
-            //                Serialized = reader["a_serialized"].ToString()
-            //            },
-            //            Second = new RawCollectResult()
-            //            {
-            //                Identity = reader["b_identity"].ToString(),
-            //                RunId = reader["b_run_id"].ToString(),
-            //                ResultType = (RESULT_TYPE)Enum.Parse(typeof(RESULT_TYPE), reader["b_result_type"].ToString()),
-            //                RowKey = reader["b_row_key"].ToString(),
-            //                Serialized = reader["b_serialized"].ToString()
-            //            }
-            //        }
-            //        );
-            //    }
-            //}
+            var col = db.GetCollection<WriteObject>("WriteObjects");
 
-            //return output;
+            var firstRun = col.Find(x => x.RunId.Equals(firstRunId));
+            var firstRunIdentities = firstRun.Select(x => x.IdentityHash).ToHashSet();
+            var firstRunHashes = firstRun.Select(x => x.InstanceHash).ToHashSet();
+            var secondRun = col.Find(x => x.RunId.Equals(secondRunId) && firstRunIdentities.Contains(x.IdentityHash) && !firstRunHashes.Contains(x.InstanceHash));
+            return secondRun.Select(x => new Tuple<WriteObject,WriteObject>(x, firstRun.First(x => x.IdentityHash.Equals(x.IdentityHash))));
         }
 
         public static void UpdateCompareRun(string firstRunId, string secondRunId, RUN_STATUS runStatus)
         {
-            //    using (var cmd = new SqliteCommand(UPDATE_RUN_IN_RESULT_TABLE, Connection, Transaction))
-            //    {
-            //        cmd.Parameters.AddWithValue("@base_run_id", firstRunId);
-            //        cmd.Parameters.AddWithValue("@compare_run_id", secondRunId);
-            //        cmd.Parameters.AddWithValue("@status", runStatus);
-            //        cmd.ExecuteNonQuery();
-            //    }
+            var crs = db.GetCollection<CompareRun>("CompareRun");
+
+            var cr = crs.FindOne(x => x.FirstRunId.Equals(firstRunId) && x.SecondRunId.Equals(secondRunId));
+            cr.Status = runStatus;
+            crs.Update(cr);
         }
 
         public static void DeleteRun(string runId)
@@ -553,66 +500,18 @@ namespace AttackSurfaceAnalyzer.Utils
             return fme.Count(x => x.RunId.Equals(runId));
         }
 
-        public static List<CompareResult> GetComparisonResults(string comparisonId, RESULT_TYPE resultType)
+        public static IEnumerable<CompareResult> GetComparisonResults(string firstRunId, string secondRunId, RESULT_TYPE resultType, int offset = 0, int numResults = 2147483647)
         {
-            var results = new List<CompareResult>();
-            //using (var cmd = new SqliteCommand(GET_COMPARISON_RESULTS_LIMIT, Connection, Transaction))
-            //{
-            //    cmd.Parameters.AddWithValue("@comparison_id", comparisonId);
-            //    cmd.Parameters.AddWithValue("@result_type", resultType);
-            //    cmd.Parameters.AddWithValue("@offset", offset);
-            //    cmd.Parameters.AddWithValue("@limit", numResults);
-            //    using (var reader = cmd.ExecuteReader())
-            //    {
-            //        while (reader.Read())
-            //        {
-            //            var obj = JsonConvert.DeserializeObject<CompareResult>(reader["serialized"].ToString());
-            //            results.Add(obj);
-            //        }
-            //    }
-            //}
+            var crs = db.GetCollection<CompareResult>("CompareResult");
 
-            return results;
+            return crs.Find(x => x.BaseRunId.Equals(firstRunId) && x.CompareRunId.Equals(secondRunId) && x.ResultType.Equals(resultType),offset,numResults);
         }
 
-        public static List<CompareResult> GetComparisonResults(string comparisonId, int resultType, int offset, int numResults)
+        public static int GetComparisonResultsCount(string firstRunId, string secondRunId, int resultType)
         {
-            var results = new List<CompareResult>();
-            //using (var cmd = new SqliteCommand(GET_COMPARISON_RESULTS_LIMIT, Connection, Transaction))
-            //{
-            //    cmd.Parameters.AddWithValue("@comparison_id", comparisonId);
-            //    cmd.Parameters.AddWithValue("@result_type", resultType);
-            //    cmd.Parameters.AddWithValue("@offset", offset);
-            //    cmd.Parameters.AddWithValue("@limit", numResults);
-            //    using (var reader = cmd.ExecuteReader())
-            //    {
-            //        while (reader.Read())
-            //        {
-            //            var obj = JsonConvert.DeserializeObject<CompareResult>(reader["serialized"].ToString());
-            //            results.Add(obj);
-            //        }
-            //    }
-            //}
+            var crs = db.GetCollection<CompareResult>("CompareResult");
 
-            return results;
-        }
-
-        public static int GetComparisonResultsCount(string comparisonId, int resultType)
-        {
-            var result_count = 0;
-            //using (var cmd = new SqliteCommand(GET_RESULT_COUNT, Connection, Transaction))
-            //{
-            //    cmd.Parameters.AddWithValue("@comparison_id", comparisonId);
-            //    cmd.Parameters.AddWithValue("@result_type", resultType);
-            //    using (var reader = cmd.ExecuteReader())
-            //    {
-            //        while (reader.Read())
-            //        {
-            //            result_count = int.Parse(reader["count(*)"].ToString(), CultureInfo.InvariantCulture);
-            //        }
-            //    }
-            //}
-            return result_count;
+            return crs.Count(x => x.BaseRunId.Equals(firstRunId) && x.CompareRunId.Equals(secondRunId) && x.ResultType.Equals(resultType));
         }
 
         public static object GetCommonResultTypes(string baseId, string compareId)
@@ -629,94 +528,56 @@ namespace AttackSurfaceAnalyzer.Utils
                 { "Log", false }
             };
 
-            var count = new Dictionary<string, int>()
+            var runs = db.GetCollection<Run>("Runs");
+
+            var firstRun = runs.FindOne(x => x.RunId.Equals(baseId));
+            var secondRun = runs.FindOne(x => x.RunId.Equals(compareId));
+
+            foreach (var collectType in firstRun.ResultTypes)
             {
-                { "File", 0 },
-                { "Certificate", 0 },
-                { "Registry", 0 },
-                { "Port", 0 },
-                { "Service", 0 },
-                { "User", 0 },
-                { "Firewall", 0 },
-                { "ComObject", 0 },
-                { "LogEntry", 0 }
-            };
-            //    using (var cmd = new SqliteCommand(SQL_GET_RESULT_TYPES, Connection, Transaction))
-            //    {
-            //        cmd.Parameters.AddWithValue("@base_run_id", baseId?.ToString(CultureInfo.InvariantCulture));
-            //        cmd.Parameters.AddWithValue("@compare_run_id", compareId?.ToString(CultureInfo.InvariantCulture));
-            //        using (var reader = cmd.ExecuteReader())
-            //        {
-            //            while (reader.Read())
-            //            {
-            //                if (int.Parse(reader["file_system"].ToString(), CultureInfo.InvariantCulture) != 0)
-            //                {
-            //                    count["File"]++;
-            //                }
-            //                if (int.Parse(reader["ports"].ToString(), CultureInfo.InvariantCulture) != 0)
-            //                {
-            //                    count["Port"]++;
-            //                }
-            //                if (int.Parse(reader["users"].ToString(), CultureInfo.InvariantCulture) != 0)
-            //                {
-            //                    count["User"]++;
-            //                }
-            //                if (int.Parse(reader["services"].ToString(), CultureInfo.InvariantCulture) != 0)
-            //                {
-            //                    count["Service"]++;
-            //                }
-            //                if (int.Parse(reader["registry"].ToString(), CultureInfo.InvariantCulture) != 0)
-            //                {
-            //                    count["Registry"]++;
-            //                }
-            //                if (int.Parse(reader["certificates"].ToString(), CultureInfo.InvariantCulture) != 0)
-            //                {
-            //                    count["Certificate"]++;
-            //                }
-            //                if (int.Parse(reader["firewall"].ToString(), CultureInfo.InvariantCulture) != 0)
-            //                {
-            //                    count["Firewall"]++;
-            //                }
-            //                if (int.Parse(reader["comobjects"].ToString(), CultureInfo.InvariantCulture) != 0)
-            //                {
-            //                    count["ComObject"]++;
-            //                }
-            //                if (int.Parse(reader["eventlogs"].ToString(), CultureInfo.InvariantCulture) != 0)
-            //                {
-            //                    count["LogEntry"]++;
-            //                }
-            //            }
-            //        }
-            //    }
-
-
-            //    foreach (KeyValuePair<string, int> entry in count)
-            //    {
-            //        if (entry.Value == 2)
-            //        {
-            //            json_out[entry.Key] = true;
-            //        }
-            //    }
+                if (collectType.Value.Equals(true) && secondRun.ResultTypes[collectType.Key].Equals(true))
+                {
+                    switch (collectType.Key)
+                    {
+                        case RESULT_TYPE.FILE:
+                            json_out["File"] = true;
+                            break;
+                        case RESULT_TYPE.CERTIFICATE:
+                            json_out["Certificate"] = true;
+                            break;
+                        case RESULT_TYPE.REGISTRY:
+                            json_out["Registry"] = true;
+                            break;
+                        case RESULT_TYPE.PORT:
+                            json_out["Port"] = true;
+                            break;
+                        case RESULT_TYPE.SERVICE:
+                            json_out["Service"] = true;
+                            break;
+                        case RESULT_TYPE.USER:
+                            json_out["User"] = true;
+                            break;
+                        case RESULT_TYPE.FIREWALL:
+                            json_out["Firewall"] = true;
+                            break;
+                        case RESULT_TYPE.COM:
+                            json_out["Com"] = true;
+                            break;
+                        case RESULT_TYPE.LOG:
+                            json_out["Log"] = true;
+                            break;
+                    }
+                }
+            }
 
             return json_out;
         }
 
         public static bool GetComparisonCompleted(string firstRunId, string secondRunId)
         {
-            //    using (var cmd = new SqliteCommand(SQL_CHECK_IF_COMPARISON_PREVIOUSLY_COMPLETED, Connection, Transaction))
-            //    {
-            //        cmd.Parameters.AddWithValue("@base_run_id", firstRunId);
-            //        cmd.Parameters.AddWithValue("@compare_run_id", secondRunId);
-            //        using (var reader = cmd.ExecuteReader())
-            //        {
-            //            while (reader.Read())
-            //            {
-            //                return true;
-            //            }
-            //        }
-            //    }
+            var cr = db.GetCollection<CompareRun>("CompareRuns");
 
-            return false;
+            return cr.Exists(x => x.FirstRunId.Equals(firstRunId) && x.SecondRunId.Equals(secondRunId));
         }
     }
 }

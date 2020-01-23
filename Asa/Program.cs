@@ -339,11 +339,11 @@ namespace AttackSurfaceAnalyzer
             foreach (RESULT_TYPE ExportType in ToExport)
             {
                 Log.Information("Exporting {0}", ExportType);
-                List<CompareResult> records = DatabaseManager.GetComparisonResults(AsaHelpers.RunIdsToCompareId(BaseId, CompareId), ExportType);
+                var records = DatabaseManager.GetComparisonResults(BaseId, CompareId, ExportType);
 
-                actualExported.Add(ExportType, records.Count);
+                actualExported.Add(ExportType, records.Count());
 
-                if (records.Count > 0)
+                if (records.Any())
                 {
                     serializer.Converters.Add(new StringEnumConverter());
                     var o = new Dictionary<string, Object>();
@@ -431,7 +431,7 @@ namespace AttackSurfaceAnalyzer
 
         public static void WriteMonitorJson(string RunId, int ResultType, string OutputPath)
         {
-            List<FileMonitorEvent> records = DatabaseManager.GetSerializedMonitorResults(RunId);
+            var records = DatabaseManager.GetSerializedMonitorResults(RunId);
 
             JsonSerializer serializer = JsonSerializer.Create(new JsonSerializerSettings()
             {
@@ -452,7 +452,6 @@ namespace AttackSurfaceAnalyzer
             }
 
             Log.Information(Strings.Get("OutputWrittenTo"), (new FileInfo(path)).FullName);
-
         }
 
         private static int RunMonitorCommand(MonitorCommandOptions opts)

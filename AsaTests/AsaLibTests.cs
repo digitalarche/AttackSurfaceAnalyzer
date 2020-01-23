@@ -34,7 +34,7 @@ namespace AsaTests
             DatabaseManager.CloseDatabase();
             try
             {
-                File.Delete(DatabaseManager.SqliteFilename);
+                File.Delete(DatabaseManager.Filename);
             }
             catch (Exception)
             {

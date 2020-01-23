@@ -90,60 +90,60 @@ namespace AttackSurfaceAnalyzer.Collectors
                 throw new ArgumentNullException(nameof(secondRunId));
             }
 
-            List<RawCollectResult> addObjects = DatabaseManager.GetMissingFromFirst(firstRunId, secondRunId);
-            List<RawCollectResult> removeObjects = DatabaseManager.GetMissingFromFirst(secondRunId, firstRunId);
-            List<RawModifiedResult> modifyObjects = DatabaseManager.GetModified(firstRunId, secondRunId);
+            var addObjects = DatabaseManager.GetMissingFromFirst(firstRunId, secondRunId);
+            var removeObjects = DatabaseManager.GetMissingFromFirst(secondRunId, firstRunId);
+            var modifyObjects = DatabaseManager.GetModified(firstRunId, secondRunId);
 
             Parallel.ForEach(addObjects,
                             (added =>
             {
                 var obj = new CompareResult()
                 {
-                    Compare = Hydrate(added),
+                    Compare = added.ColObj,
                     BaseRunId = firstRunId,
                     CompareRunId = secondRunId,
-                    CompareRowKey = added.RowKey,
+                    CompareRowKey = added.InstanceHash,
                     ChangeType = CHANGE_TYPE.CREATED,
-                    ResultType = added.ResultType,
-                    Identity = added.Identity
+                    ResultType = added.ColObj.ResultType,
+                    Identity = added.ColObj.Identity
                 };
                 Log.Debug($"Adding {obj.Identity}");
-                Results[$"{added.ResultType.ToString()}_{CHANGE_TYPE.CREATED.ToString()}"].Enqueue(obj);
+                Results[$"{added.ColObj.ResultType.ToString()}_{CHANGE_TYPE.CREATED.ToString()}"].Enqueue(obj);
             }));
             Parallel.ForEach(removeObjects,
                             (removed =>
             {
                 var obj = new CompareResult()
                 {
-                    Base = Hydrate(removed),
+                    Base = removed.ColObj,
                     BaseRunId = firstRunId,
                     CompareRunId = secondRunId,
-                    BaseRowKey = removed.RowKey,
+                    BaseRowKey = removed.InstanceHash,
                     ChangeType = CHANGE_TYPE.DELETED,
-                    ResultType = removed.ResultType,
-                    Identity = removed.Identity
+                    ResultType = removed.ColObj.ResultType,
+                    Identity = removed.ColObj.Identity
                 };
 
-                Results[$"{removed.ResultType.ToString()}_{CHANGE_TYPE.DELETED.ToString()}"].Enqueue(obj);
+                Results[$"{removed.ColObj.ResultType.ToString()}_{CHANGE_TYPE.DELETED.ToString()}"].Enqueue(obj);
             }));
             Parallel.ForEach(modifyObjects,
                             (modified =>
             {
                 var compareLogic = new CompareLogic();
                 compareLogic.Config.IgnoreCollectionOrder = true;
-                var first = Hydrate(modified.First);
-                var second = Hydrate(modified.Second);
+                var first = modified.Item1;
+                var second = modified.Item2;
                 var obj = new CompareResult()
                 {
                     Base = first,
                     Compare = second,
                     BaseRunId = firstRunId,
                     CompareRunId = secondRunId,
-                    BaseRowKey = modified.First.RowKey,
-                    CompareRowKey = modified.Second.RowKey,
+                    BaseRowKey = modified.Item1.InstanceHash,
+                    CompareRowKey = modified.Item2.InstanceHash,
                     ChangeType = CHANGE_TYPE.MODIFIED,
-                    ResultType = modified.First.ResultType,
-                    Identity = modified.First.Identity
+                    ResultType = modified.Item1.ColObj.ResultType,
+                    Identity = modified.Item1.ColObj.Identity
                 };
 
                 var properties = first.GetType().GetProperties();
@@ -258,7 +258,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                     }
                 }
 
-                Results[$"{modified.First.ResultType.ToString()}_{CHANGE_TYPE.MODIFIED.ToString()}"].Enqueue(obj);
+                Results[$"{modified.Item1.ColObj.ResultType.ToString()}_{CHANGE_TYPE.MODIFIED.ToString()}"].Enqueue(obj);
             }));
 
             foreach (var empty in Results.Where(x => x.Value.Count == 0))

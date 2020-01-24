@@ -80,7 +80,17 @@ namespace AttackSurfaceAnalyzer.Utils
 
             var settings = db.GetCollection<Setting>("Settings");
 
-            SetOptOut(false);
+            settings.EnsureIndex(x => x.Name);
+
+            if (settings.FindOne(x => x.Name.Equals("TelemetryOptOut")) == null)
+            {
+                FirstRun = true;
+                SetOptOut(false);
+            }
+            else
+            {
+                FirstRun = false;
+            }
 
             var res = settings.Count(x => x.Name.Equals("SchemaVersion"));
 
@@ -321,13 +331,45 @@ namespace AttackSurfaceAnalyzer.Utils
 
         public static IEnumerable<Tuple<WriteObject,WriteObject>> GetModified(string firstRunId, string secondRunId)
         {
+            var list = new List<Tuple<WriteObject, WriteObject>>();
+
             var col = db.GetCollection<WriteObject>("WriteObjects");
 
             var firstRun = col.Find(x => x.RunId.Equals(firstRunId));
-            var firstRunIdentities = firstRun.Select(x => x.IdentityHash).ToHashSet();
-            var firstRunHashes = firstRun.Select(x => x.InstanceHash).ToHashSet();
-            var secondRun = col.Find(x => x.RunId.Equals(secondRunId) && firstRunIdentities.Contains(x.IdentityHash) && !firstRunHashes.Contains(x.InstanceHash));
-            return secondRun.Select(x => new Tuple<WriteObject,WriteObject>(x, firstRun.First(x => x.IdentityHash.Equals(x.IdentityHash))));
+
+            foreach (var firstObj in firstRun)
+            {
+                var secondObj = col.Find(x => x.IdentityHash.Equals(firstObj.IdentityHash)).FirstOrDefault(x => x.RunId.Equals(secondRunId));
+                if (secondObj != null)
+                {
+                    if (secondObj.InstanceHash != firstObj.InstanceHash)
+                    {
+                        list.Add(new Tuple<WriteObject, WriteObject>(firstObj, secondObj));
+                    }
+                }
+            }
+
+            var firstRunIdentityHashes = firstRun.Select(x => x.IdentityHash).ToHashSet();
+            var commonIdentities = col.Find(x => x.RunId.Equals(secondRunId) && firstRunIdentityHashes.Contains(x.IdentityHash)).Select(x => new Tuple<WriteObject,WriteObject>(x,firstRun.First(y => y.IdentityHash.Equals(x.IdentityHash))));
+            //var changedInstances = commonIdentities.Where(x =>
+            //    !x.InstanceHash.Equals(
+            //        col.FindOne(y =>
+            //            y.RunId.Equals(firstRunId) &&
+            //            y.IdentityHash.Equals(x.IdentityHash))
+            //        .InstanceHash
+            //));
+
+            foreach(var commonIdentity in commonIdentities)
+            {
+                if (!commonIdentity.Item1.InstanceHash.Equals(commonIdentity.Item2.InstanceHash))
+                {
+                    list.Add(commonIdentity);
+                }
+            }
+
+            //var secondRun = col.Find(x => x.RunId.Equals(secondRunId) && firstRunIdentityTuples.Any(y => y.Item1.Equals(x.IdentityHash) && !y.Item2.Equals(x.InstanceHash)));
+            //return changedInstances.Select(x => new Tuple<WriteObject,WriteObject>(x, firstRun.First(x => x.IdentityHash.Equals(x.IdentityHash))));
+            return list;
         }
 
         public static void UpdateCompareRun(string firstRunId, string secondRunId, RUN_STATUS runStatus)

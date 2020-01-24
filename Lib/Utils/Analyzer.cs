@@ -148,18 +148,19 @@ namespace AttackSurfaceAnalyzer.Utils
                             {
                                 try
                                 {
-                                    if (GetValueByPropertyName(compareResult.Compare, property.Name) is List<string>)
+                                    Log.Debug(JsonConvert.SerializeObject(compareResult));
+                                    Log.Debug($"{JsonConvert.SerializeObject(property.Name)} is the property name");
+                                    var value = GetValueByPropertyName(compareResult.Compare, property.Name);
+                                    if (value is List<string>)
                                     {
-                                        foreach (var value in (List<string>)GetValueByPropertyName(compareResult.Compare, property.Name))
-                                        {
-                                            valsToCheck.Add(value);
-                                        }
+                                        
+                                        valsToCheck.AddRange((List<string>)GetValueByPropertyName(compareResult.Compare, property.Name));
                                     }
-                                    else if (GetValueByPropertyName(compareResult.Compare, property.Name) is Dictionary<string, string>)
+                                    else if (value is Dictionary<string, string>)
                                     {
                                         dictToCheck = ((Dictionary<string, string>)GetValueByPropertyName(compareResult.Compare, property.Name)).ToList();
                                     }
-                                    else if (GetValueByPropertyName(compareResult.Compare, property.Name) is List<KeyValuePair<string, string>>)
+                                    else if (value is List<KeyValuePair<string, string>>)
                                     {
                                         dictToCheck = (List<KeyValuePair<string, string>>)GetValueByPropertyName(compareResult.Compare, property.Name);
                                     }

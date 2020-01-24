@@ -266,3 +266,5 @@ Tools/
 asa.sqlite
 *asa.log.txt
 *.sqlite
+Asa/asa.litedb
+*.litedb

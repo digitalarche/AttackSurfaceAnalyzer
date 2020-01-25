@@ -3,6 +3,7 @@
 using AttackSurfaceAnalyzer.Objects;
 using AttackSurfaceAnalyzer.Types;
 using LiteDB;
+using PeNet.Structures;
 using Serilog;
 using System;
 using System.Collections.Concurrent;
@@ -39,10 +40,10 @@ namespace AttackSurfaceAnalyzer.Utils
                     {
                         CloseDatabase();
                     }
-
-                    Filename = filename;
                 }
             }
+
+            Filename = filename;
 
             var StopWatch = System.Diagnostics.Stopwatch.StartNew();
 
@@ -54,49 +55,55 @@ namespace AttackSurfaceAnalyzer.Utils
             {
                 Log.Debug($"Initializing database at {Filename}");
             }
-            db = new LiteDatabase($"Filename={Filename};Journal=false;Mode=Exclusive");
-
-            StopWatch.Stop();
-            var t = TimeSpan.FromMilliseconds(StopWatch.ElapsedMilliseconds);
-            var answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
-                                    t.Hours,
-                                    t.Minutes,
-                                    t.Seconds,
-                                    t.Milliseconds);
-            Log.Debug("Completed opening database in {0}", answer);
-
-            var col = db.GetCollection<WriteObject>("WriteObjects");
-
-            col.EnsureIndex(x => x.IdentityHash);
-            col.EnsureIndex(x => x.InstanceHash);
-            col.EnsureIndex(x => x.ColObj.ResultType);
-            col.EnsureIndex(x => x.RunId);
-
-            var cr = db.GetCollection<CompareResult>("CompareResults");
-
-            cr.EnsureIndex(x => x.BaseRunId);
-            cr.EnsureIndex(x => x.CompareRunId);
-            cr.EnsureIndex(x => x.ResultType);
-
-            var settings = db.GetCollection<Setting>("Settings");
-
-            settings.EnsureIndex(x => x.Name);
-
-            if (settings.FindOne(x => x.Name.Equals("TelemetryOptOut")) == null)
+            try
             {
-                FirstRun = true;
-                SetOptOut(false);
+                db = new LiteDatabase("Filename=asa.litedb;Journal=false;Mode=Exclusive");
+                StopWatch.Stop();
+                var t = TimeSpan.FromMilliseconds(StopWatch.ElapsedMilliseconds);
+                var answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
+                                        t.Hours,
+                                        t.Minutes,
+                                        t.Seconds,
+                                        t.Milliseconds);
+                Log.Debug("Completed opening database in {0}", answer);
+
+                var col = db.GetCollection<WriteObject>("WriteObjects");
+
+                col.EnsureIndex(x => x.IdentityHash);
+                col.EnsureIndex(x => x.InstanceHash);
+                col.EnsureIndex(x => x.ColObj.ResultType);
+                col.EnsureIndex(x => x.RunId);
+
+                var cr = db.GetCollection<CompareResult>("CompareResults");
+
+                cr.EnsureIndex(x => x.BaseRunId);
+                cr.EnsureIndex(x => x.CompareRunId);
+                cr.EnsureIndex(x => x.ResultType);
+
+                var settings = db.GetCollection<Setting>("Settings");
+
+                settings.EnsureIndex(x => x.Name);
+
+                if (settings.FindOne(Query.EQ("Name", "TelemetryOptOut")) == null)
+                {
+                    FirstRun = true;
+                    SetOptOut(false);
+                }
+                else
+                {
+                    FirstRun = false;
+                }
+
+                var res = settings.Count(Query.EQ("Name","SchemaVersion"));
+
+                if (res == 0)
+                {
+                    settings.Insert(new Setting() { Name = "SchemaVersion", Value = SCHEMA_VERSION });
+                }
             }
-            else
+            catch (Exception e)
             {
-                FirstRun = false;
-            }
-
-            var res = settings.Count(x => x.Name.Equals("SchemaVersion"));
-
-            if (res == 0)
-            {
-                settings.Insert(new Setting() { Name = "SchemaVersion", Value = SCHEMA_VERSION });
+                Log.Debug(e, "Initializing database.");
             }
 
             if (!WriterStarted)
@@ -201,7 +208,7 @@ namespace AttackSurfaceAnalyzer.Utils
         {
             var settings = db.GetCollection<Setting>("Settings");
 
-            if (!(settings.Find(x => x.Name.Equals("SchemaVersion") && x.Value.Equals(SCHEMA_VERSION)).Any()))
+            if (!(settings.Exists(Query.And(Query.EQ("Name","SchemaVersion"),Query.EQ("Value",SCHEMA_VERSION)))))
             {
                 Log.Fatal("Schema version of database is {0} but {1} is required. Use config --reset-database to delete the incompatible database.", settings.FindOne(x => x.Name.Equals("SchemaVersion")).Value, SCHEMA_VERSION);
                 Environment.Exit(-1);
@@ -309,66 +316,74 @@ namespace AttackSurfaceAnalyzer.Utils
             }
 
             var col = db.GetCollection<WriteObject>("WriteObjects");
-            col.InsertBulk(list);
+            col.Insert(list);
+        }
+
+        public static bool RunContains(string runId, string IdentityHash)
+        {
+            var col = db.GetCollection<WriteObject>("WriteObjects");
+
+            return col.Exists(y => y.RunId == runId && y.IdentityHash == IdentityHash);
         }
 
         public static IEnumerable<WriteObject> GetMissingFromFirst(string firstRunId, string secondRunId)
         {
             var col = db.GetCollection<WriteObject>("WriteObjects");
 
-            var firstRun = col.Find(x => x.RunId.Equals(firstRunId));
-            var firstRunIdentities = firstRun.Select(x => x.IdentityHash).ToHashSet();
-            var res = col.Find(x => x.RunId.Equals(secondRunId) && !firstRunIdentities.Contains(x.IdentityHash));
-            if (res == null)
+            var list = new ConcurrentBag<WriteObject>();
+
+            var Stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+            var woList = GetWriteObjects(secondRunId).ToList();
+
+            var SqlList = db.Execute($"SELECT * FROM WriteObjects WHERE RunId = @0 AND (SELECT COUNT(*) FROM WriteObjects WHERE RunId = @1 AND )")
+
+            Stopwatch.Stop();
+            var t = TimeSpan.FromMilliseconds(Stopwatch.ElapsedMilliseconds);
+            var answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
+                                    t.Hours,
+                                    t.Minutes,
+                                    t.Seconds,
+                                    t.Milliseconds);
+            Log.Debug("Completed getting WriteObjects for {0} in {1}", secondRunId, answer);
+
+
+            Parallel.ForEach(woList, WO =>
             {
-                return new List<WriteObject>();
-            }
-            else
-            {
-                return res;
-            }
+                if (!RunContains(firstRunId, WO.IdentityHash))
+                {
+                    list.Add(WO);
+                }
+            });
+
+            return list;
         }
+
+        public static IEnumerable<WriteObject> GetWriteObjects(string runId)
+        {
+            var col = db.GetCollection<WriteObject>("WriteObjects");
+
+            return col.Find(Query.EQ("RunId", runId));
+        }
+
 
         public static IEnumerable<Tuple<WriteObject,WriteObject>> GetModified(string firstRunId, string secondRunId)
         {
-            var list = new List<Tuple<WriteObject, WriteObject>>();
-
             var col = db.GetCollection<WriteObject>("WriteObjects");
 
-            var firstRun = col.Find(x => x.RunId.Equals(firstRunId));
+            var list = new ConcurrentBag<Tuple<WriteObject, WriteObject>>();
 
-            foreach (var firstObj in firstRun)
-            {
-                var secondObj = col.Find(x => x.IdentityHash.Equals(firstObj.IdentityHash)).FirstOrDefault(x => x.RunId.Equals(secondRunId));
-                if (secondObj != null)
+            Parallel.ForEach(GetWriteObjects(firstRunId).ToList(), WO =>
                 {
-                    if (secondObj.InstanceHash != firstObj.InstanceHash)
+                    var secondItem = col.FindOne(Query.And(Query.EQ("RunId", secondRunId), Query.EQ("IdentityHash", WO.IdentityHash), Query.Not("InstanceHash", WO.InstanceHash)));
+                    if (secondItem != null)
                     {
-                        list.Add(new Tuple<WriteObject, WriteObject>(firstObj, secondObj));
+                        var tuple = new Tuple<WriteObject, WriteObject>(WO, secondItem);
+                        list.Add(tuple);
                     }
                 }
-            }
+            );
 
-            var firstRunIdentityHashes = firstRun.Select(x => x.IdentityHash).ToHashSet();
-            var commonIdentities = col.Find(x => x.RunId.Equals(secondRunId) && firstRunIdentityHashes.Contains(x.IdentityHash)).Select(x => new Tuple<WriteObject,WriteObject>(x,firstRun.First(y => y.IdentityHash.Equals(x.IdentityHash))));
-            //var changedInstances = commonIdentities.Where(x =>
-            //    !x.InstanceHash.Equals(
-            //        col.FindOne(y =>
-            //            y.RunId.Equals(firstRunId) &&
-            //            y.IdentityHash.Equals(x.IdentityHash))
-            //        .InstanceHash
-            //));
-
-            foreach(var commonIdentity in commonIdentities)
-            {
-                if (!commonIdentity.Item1.InstanceHash.Equals(commonIdentity.Item2.InstanceHash))
-                {
-                    list.Add(commonIdentity);
-                }
-            }
-
-            //var secondRun = col.Find(x => x.RunId.Equals(secondRunId) && firstRunIdentityTuples.Any(y => y.Item1.Equals(x.IdentityHash) && !y.Item2.Equals(x.InstanceHash)));
-            //return changedInstances.Select(x => new Tuple<WriteObject,WriteObject>(x, firstRun.First(x => x.IdentityHash.Equals(x.IdentityHash))));
             return list;
         }
 
@@ -385,11 +400,11 @@ namespace AttackSurfaceAnalyzer.Utils
         {
             var Runs = db.GetCollection<Run>("Runs");
 
-            Runs.Delete(x => x.RunId.Equals(runId));
+            Runs.DeleteMany(x => x.RunId.Equals(runId));
 
             var Results = db.GetCollection<WriteObject>("WriteObjects");
 
-            Results.Delete(x => x.RunId.Equals(runId));
+            Results.DeleteMany(x => x.RunId.Equals(runId));
         }
 
         public static bool GetOptOut()
@@ -421,7 +436,7 @@ namespace AttackSurfaceAnalyzer.Utils
         {
             var runs = db.GetCollection<Run>("Runs");
 
-            return runs.FindOne(x => x.RunId.Equals(RunId));
+            return runs.FindOne(Query.EQ("RunId",RunId));
         }
 
         public static List<string> GetMonitorRuns()

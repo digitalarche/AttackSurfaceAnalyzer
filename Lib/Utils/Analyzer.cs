@@ -175,7 +175,7 @@ namespace AttackSurfaceAnalyzer.Utils
 
                                     Dictionary<string, string> ExceptionEvent = new Dictionary<string, string>();
                                     ExceptionEvent.Add("Exception Type", e.GetType().ToString());
-                                    AsaTelemetry.TrackEvent("ApplyCreatedModifiedException", ExceptionEvent);
+                                    AsaTelemetry.TrackEvent("   CreatedModifiedException", ExceptionEvent);
                                 }
                             }
                             if (compareResult.ChangeType == CHANGE_TYPE.DELETED || compareResult.ChangeType == CHANGE_TYPE.MODIFIED)

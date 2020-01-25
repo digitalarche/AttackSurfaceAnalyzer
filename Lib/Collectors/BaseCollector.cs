@@ -30,6 +30,7 @@ namespace AttackSurfaceAnalyzer.Collectors
                 return;
             }
             Start();
+            DatabaseManager.db.BeginTrans();
 
             var StopWatch = System.Diagnostics.Stopwatch.StartNew();
 
@@ -92,6 +93,16 @@ namespace AttackSurfaceAnalyzer.Collectors
                                     t.Milliseconds);
             Log.Debug("Completed flushing in {0}", answer);
 
+            StopWatch = Stopwatch.StartNew();
+            DatabaseManager.db.Commit();
+            StopWatch.Stop();
+            t = TimeSpan.FromMilliseconds(StopWatch.ElapsedMilliseconds);
+            answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
+                                    t.Hours,
+                                    t.Minutes,
+                                    t.Seconds,
+                                    t.Milliseconds);
+            Log.Debug("Completed flushing in {0}", answer);
             Stop();
         }
         public abstract bool CanRunOnPlatform();

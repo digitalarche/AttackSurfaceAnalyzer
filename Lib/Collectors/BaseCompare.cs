@@ -9,6 +9,8 @@ using Serilog;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -81,6 +83,7 @@ namespace AttackSurfaceAnalyzer.Collectors
         [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Collecting telemetry on exceptions.")]
         public void Compare(string firstRunId, string secondRunId)
         {
+
             if (firstRunId == null)
             {
                 throw new ArgumentNullException(nameof(firstRunId));
@@ -90,9 +93,47 @@ namespace AttackSurfaceAnalyzer.Collectors
                 throw new ArgumentNullException(nameof(secondRunId));
             }
 
+            DatabaseManager.db.BeginTrans();
+
+            var StopWatch = System.Diagnostics.Stopwatch.StartNew();
+
+            var SubWatch = System.Diagnostics.Stopwatch.StartNew();
+
             var addObjects = DatabaseManager.GetMissingFromFirst(firstRunId, secondRunId);
+
+            SubWatch.Stop();
+            var t = TimeSpan.FromMilliseconds(StopWatch.ElapsedMilliseconds);
+            var answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
+                                    t.Hours,
+                                    t.Minutes,
+                                    t.Seconds,
+                                    t.Milliseconds);
+            Log.Debug("Completed Calculated Added Objects in {0}", answer);
+            SubWatch = System.Diagnostics.Stopwatch.StartNew();
+
             var removeObjects = DatabaseManager.GetMissingFromFirst(secondRunId, firstRunId);
+
+            SubWatch.Stop();
+            t = TimeSpan.FromMilliseconds(StopWatch.ElapsedMilliseconds);
+            answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
+                                    t.Hours,
+                                    t.Minutes,
+                                    t.Seconds,
+                                    t.Milliseconds);
+            Log.Debug("Completed Calculated Removed Objects in {0}", answer);
+            SubWatch = System.Diagnostics.Stopwatch.StartNew();
+
             var modifyObjects = DatabaseManager.GetModified(firstRunId, secondRunId);
+
+            SubWatch.Stop();
+            t = TimeSpan.FromMilliseconds(StopWatch.ElapsedMilliseconds);
+            answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
+                                    t.Hours,
+                                    t.Minutes,
+                                    t.Seconds,
+                                    t.Milliseconds);
+            Log.Debug("Completed Calculated Modified Objects in {0}", answer);
+            SubWatch = System.Diagnostics.Stopwatch.StartNew();
 
             Parallel.ForEach(addObjects,
                             (added =>
@@ -110,6 +151,18 @@ namespace AttackSurfaceAnalyzer.Collectors
                 Log.Debug($"Adding {obj.Identity}");
                 Results[$"{added.ColObj.ResultType.ToString()}_{CHANGE_TYPE.CREATED.ToString()}"].Enqueue(obj);
             }));
+
+            SubWatch.Stop();
+            t = TimeSpan.FromMilliseconds(StopWatch.ElapsedMilliseconds);
+            answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
+                                    t.Hours,
+                                    t.Minutes,
+                                    t.Seconds,
+                                    t.Milliseconds);
+            Log.Debug("Completed Parsed Added Objects in {0}", answer);
+            SubWatch = System.Diagnostics.Stopwatch.StartNew();
+
+
             Parallel.ForEach(removeObjects,
                             (removed =>
             {
@@ -126,6 +179,18 @@ namespace AttackSurfaceAnalyzer.Collectors
 
                 Results[$"{removed.ColObj.ResultType.ToString()}_{CHANGE_TYPE.DELETED.ToString()}"].Enqueue(obj);
             }));
+
+            SubWatch.Stop();
+            t = TimeSpan.FromMilliseconds(StopWatch.ElapsedMilliseconds);
+            answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
+                                    t.Hours,
+                                    t.Minutes,
+                                    t.Seconds,
+                                    t.Milliseconds);
+            Log.Debug("Completed Parsed Removed Objects in {0}", answer);
+            SubWatch = System.Diagnostics.Stopwatch.StartNew();
+
+
             Parallel.ForEach(modifyObjects,
                             (modified =>
             {
@@ -204,10 +269,30 @@ namespace AttackSurfaceAnalyzer.Collectors
                 Results[$"{modified.Item1.ColObj.ResultType.ToString()}_{CHANGE_TYPE.MODIFIED.ToString()}"].Enqueue(obj);
             }));
 
+            SubWatch.Stop();
+            t = TimeSpan.FromMilliseconds(StopWatch.ElapsedMilliseconds);
+            answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
+                                    t.Hours,
+                                    t.Minutes,
+                                    t.Seconds,
+                                    t.Milliseconds);
+            Log.Debug("Completed Parsed Modified Objects in {0}", answer);
+            SubWatch = System.Diagnostics.Stopwatch.StartNew();
+
+
             foreach (var empty in Results.Where(x => x.Value.Count == 0))
             {
                 Results.Remove(empty.Key, out _);
             }
+
+            StopWatch.Stop();
+            t = TimeSpan.FromMilliseconds(StopWatch.ElapsedMilliseconds);
+            answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
+                                    t.Hours,
+                                    t.Minutes,
+                                    t.Seconds,
+                                    t.Milliseconds);
+            Log.Debug("Completed comparing in {0}", answer);
         }
 
         public static List<Diff> GenerateDiffs(string propName, object value1, object value2)

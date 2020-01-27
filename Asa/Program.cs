@@ -213,7 +213,7 @@ namespace AttackSurfaceAnalyzer
 
             if (opts.FirstRunId == "Timestamps" || opts.SecondRunId == "Timestamps")
             {
-                List<string> runIds = DatabaseManager.GetLatestRunIds(2, "collect");
+                List<string> runIds = DatabaseManager.GetLatestRunIds(2, RUN_TYPE.COLLECT);
 
                 if (runIds.Count < 2)
                 {
@@ -404,7 +404,7 @@ namespace AttackSurfaceAnalyzer
 
             if (opts.RunId.Equals("Timestamp", StringComparison.InvariantCulture))
             {
-                List<string> runIds = DatabaseManager.GetLatestRunIds(1, "monitor");
+                List<string> runIds = DatabaseManager.GetLatestRunIds(1, RUN_TYPE.MONITOR);
 
                 if (runIds.Count < 1)
                 {
@@ -718,11 +718,12 @@ namespace AttackSurfaceAnalyzer
                 Log.Information(Strings.Get("Completed"), "Analysis", answer);
             }
 
-            watch = System.Diagnostics.Stopwatch.StartNew();
 
 
             if (opts.SaveToDatabase)
             {
+                watch = System.Diagnostics.Stopwatch.StartNew();
+
                 foreach (var key in results.Keys)
                 {
                     try
@@ -737,17 +738,16 @@ namespace AttackSurfaceAnalyzer
                         Log.Debug(key);
                     }
                 }
+
+                watch.Stop();
+                t = TimeSpan.FromMilliseconds(watch.ElapsedMilliseconds);
+                answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
+                                        t.Hours,
+                                        t.Minutes,
+                                        t.Seconds,
+                                        t.Milliseconds);
+                Log.Information(Strings.Get("Completed"), "Writing", answer);
             }
-
-
-            watch.Stop();
-            t = TimeSpan.FromMilliseconds(watch.ElapsedMilliseconds);
-            answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
-                                    t.Hours,
-                                    t.Minutes,
-                                    t.Seconds,
-                                    t.Milliseconds);
-            Log.Information(Strings.Get("Completed"), "Flushing", answer);
 
             if (opts.SaveToDatabase)
             {
@@ -852,17 +852,19 @@ namespace AttackSurfaceAnalyzer
             DatabaseManager.Setup(opts.DatabaseFilename);
             AsaTelemetry.Setup();
 
-            Dictionary<string, string> StartEvent = new Dictionary<string, string>();
-            StartEvent.Add("Files", opts.EnableAllCollectors ? "True" : opts.EnableFileSystemCollector.ToString(CultureInfo.InvariantCulture));
-            StartEvent.Add("Ports", opts.EnableNetworkPortCollector.ToString(CultureInfo.InvariantCulture));
-            StartEvent.Add("Users", opts.EnableUserCollector.ToString(CultureInfo.InvariantCulture));
-            StartEvent.Add("Certificates", opts.EnableCertificateCollector.ToString(CultureInfo.InvariantCulture));
-            StartEvent.Add("Registry", opts.EnableRegistryCollector.ToString(CultureInfo.InvariantCulture));
-            StartEvent.Add("Service", opts.EnableServiceCollector.ToString(CultureInfo.InvariantCulture));
-            StartEvent.Add("Firewall", opts.EnableFirewallCollector.ToString(CultureInfo.InvariantCulture));
-            StartEvent.Add("ComObject", opts.EnableComObjectCollector.ToString(CultureInfo.InvariantCulture));
-            StartEvent.Add("EventLog", opts.EnableEventLogCollector.ToString(CultureInfo.InvariantCulture));
-            StartEvent.Add("Admin", AsaHelpers.IsAdmin().ToString(CultureInfo.InvariantCulture));
+            Dictionary<string, string> StartEvent = new Dictionary<string, string>()
+            {
+                { "Files", opts.EnableAllCollectors ? "True" : opts.EnableFileSystemCollector.ToString(CultureInfo.InvariantCulture) },
+                {"Ports", opts.EnableNetworkPortCollector.ToString(CultureInfo.InvariantCulture)},
+                {"Users", opts.EnableUserCollector.ToString(CultureInfo.InvariantCulture)},
+                {"Certificates", opts.EnableCertificateCollector.ToString(CultureInfo.InvariantCulture)},
+                {"Registry", opts.EnableRegistryCollector.ToString(CultureInfo.InvariantCulture)},
+                {"Service", opts.EnableServiceCollector.ToString(CultureInfo.InvariantCulture)},
+                {"Firewall", opts.EnableFirewallCollector.ToString(CultureInfo.InvariantCulture)},
+                {"ComObject", opts.EnableComObjectCollector.ToString(CultureInfo.InvariantCulture)},
+                {"EventLog", opts.EnableEventLogCollector.ToString(CultureInfo.InvariantCulture)},
+                {"Admin", AsaHelpers.IsAdmin().ToString(CultureInfo.InvariantCulture)}
+            };
             AsaTelemetry.TrackEvent("Run Command", StartEvent);
 
             AdminOrQuit();

@@ -56,7 +56,6 @@ This NuGet contains the AttackSurfaceAnalyzer Library, which is used by the CLI 
     </PackageReference>
     <PackageReference Include="WindowsFirewallHelper" Version="2.0.2.29-beta1" />
     <PackageReference Include="CommandLineParser" Version="2.7.82" />
-    <PackageReference Include="LiteDB" Version="5.0.0-rc" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="..\filters.json" Link="filters.json" />
@@ -70,5 +69,10 @@ This NuGet contains the AttackSurfaceAnalyzer Library, which is used by the CLI 
     <None Include="..\AttackSurfaceAnalyzer.sln.licenseheader" Link="AttackSurfaceAnalyzer.sln.licenseheader" />
     <None Include="..\PRIVACY.md" Link="PRIVACY.md" />
     <None Include="..\README.md" Link="README.md" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="LiteDB">
+      <HintPath>..\LiteDB.dll</HintPath>
+    </Reference>
   </ItemGroup>
 </Project>

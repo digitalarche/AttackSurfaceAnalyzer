@@ -20,6 +20,7 @@ namespace AttackSurfaceAnalyzer.Utils
     {
         private const string SCHEMA_VERSION = "5";
         private static bool WriterStarted = false;
+        private static ConcurrentBag<LiteCollection<WriteObject>> WriteObjectCollections = new ConcurrentBag<LiteCollection<WriteObject>>();
 
         public static ConcurrentQueue<WriteObject> WriteQueue { get; private set; } = new ConcurrentQueue<WriteObject>();
 
@@ -215,13 +216,11 @@ namespace AttackSurfaceAnalyzer.Utils
             }
         }
 
-        public static List<string> GetLatestRunIds(int numberOfIds, string type)
+        public static List<string> GetLatestRunIds(int numberOfIds, RUN_TYPE type)
         {
             var runs = db.GetCollection<Run>("Runs");
-
-            var latest = runs.FindOne(Query.All(Query.Descending));
-
-            return runs.Find(x => x.Id > latest.Id - numberOfIds).Select(x => x.RunId).ToList();
+            var selectedRuns = runs.Find(Query.All(Query.Descending)).Where(x => x.Type == type).Select(x => x.RunId).Take(numberOfIds).ToList();
+            return selectedRuns;
         }
 
         public static Dictionary<RESULT_TYPE, int> GetResultTypesAndCounts(string runId)
@@ -321,42 +320,96 @@ namespace AttackSurfaceAnalyzer.Utils
 
         public static bool RunContains(string runId, string IdentityHash)
         {
-            var col = db.GetCollection<WriteObject>("WriteObjects");
+            LiteCollection<WriteObject> col;
+            WriteObjectCollections.TryTake(out col);
+            if (col == null)
+            {
+                col = db.GetCollection<WriteObject>();
+            }
 
-            return col.Exists(y => y.RunId == runId && y.IdentityHash == IdentityHash);
+            var output = col.Exists(y => y.RunId == runId && y.IdentityHash == IdentityHash);
+
+            WriteObjectCollections.Add(col);
+
+            return output;
+
         }
+
+        public static WriteObject GetWriteObject(string RunId, string IdentityHash)
+        {
+            LiteCollection<WriteObject> col;
+            WriteObjectCollections.TryTake(out col);
+            if (col == null)
+            {
+                col = db.GetCollection<WriteObject>();
+            }
+
+            var output = col.FindOne(x => x.IdentityHash == IdentityHash && x.RunId == RunId);
+            
+            WriteObjectCollections.Add(col);
+
+            return output;
+        }
+
+        //public static IEnumerable<WriteObject> GetMissingFromFirst2(string firstRunId, string secondRunId)
+        //{
+        //    var col = db.GetCollection<WriteObject>("WriteObjects");
+
+        //    var list = new ConcurrentBag<WriteObject>();
+
+        //    var Stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        //    var identityHashes = db.Execute($"SELECT IdentityHash FROM WriteObjects WHERE RunId = @0",
+        //            new BsonDocument
+        //            {
+        //                ["0"] = secondRunId
+        //            });
+
+        //    Parallel.ForEach(identityHashes.ToEnumerable(), IdentityHash =>
+        //    {
+        //        if (WriteObjectExists(firstRunId, IdentityHash["IdentityHash"].AsString))
+        //        {
+        //            list.Add(GetWriteObject(secondRunId, IdentityHash.AsString));
+        //        }
+        //    });
+
+        //    Stopwatch.Stop();
+        //    var t = TimeSpan.FromMilliseconds(Stopwatch.ElapsedMilliseconds);
+        //    var answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
+        //                            t.Hours,
+        //                            t.Minutes,
+        //                            t.Seconds,
+        //                            t.Milliseconds);
+        //    Log.Debug("Completed getting WriteObjects for {0} in {1}", secondRunId, answer);
+
+        //    return list;
+        //}
 
         public static IEnumerable<WriteObject> GetMissingFromFirst(string firstRunId, string secondRunId)
         {
             var col = db.GetCollection<WriteObject>("WriteObjects");
 
             var list = new ConcurrentBag<WriteObject>();
+            
+            var wos = col.Find(x => x.RunId == secondRunId);
 
-            var Stopwatch = System.Diagnostics.Stopwatch.StartNew();
-
-            var woList = GetWriteObjects(secondRunId).ToList();
-
-            var SqlList = db.Execute($"SELECT * FROM WriteObjects WHERE RunId = @0 AND (SELECT COUNT(*) FROM WriteObjects WHERE RunId = @1 AND )")
-
-            Stopwatch.Stop();
-            var t = TimeSpan.FromMilliseconds(Stopwatch.ElapsedMilliseconds);
-            var answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
-                                    t.Hours,
-                                    t.Minutes,
-                                    t.Seconds,
-                                    t.Milliseconds);
-            Log.Debug("Completed getting WriteObjects for {0} in {1}", secondRunId, answer);
-
-
-            Parallel.ForEach(woList, WO =>
+            Parallel.ForEach(wos, wo =>
             {
-                if (!RunContains(firstRunId, WO.IdentityHash))
+                if (!WriteObjectExists(firstRunId, wo.IdentityHash))
                 {
-                    list.Add(WO);
+                    list.Add(wo);
                 }
             });
 
-            return list;
+            return wos;
+        }
+
+        private static bool WriteObjectExists(string RunId, string IdentityHash)
+        {
+            var col = db.GetCollection<WriteObject>("WriteObjects");
+            var exists = col.Exists(x => x.IdentityHash == IdentityHash && x.RunId == RunId);
+
+            return exists;
         }
 
         public static IEnumerable<WriteObject> GetWriteObjects(string runId)
@@ -400,11 +453,11 @@ namespace AttackSurfaceAnalyzer.Utils
         {
             var Runs = db.GetCollection<Run>("Runs");
 
-            Runs.DeleteMany(x => x.RunId.Equals(runId));
+            Runs.DeleteMany(x => x.RunId == runId);
 
             var Results = db.GetCollection<WriteObject>("WriteObjects");
 
-            Results.DeleteMany(x => x.RunId.Equals(runId));
+            Results.DeleteMany(x => x.RunId == runId);
         }
 
         public static bool GetOptOut()

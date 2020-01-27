@@ -381,7 +381,8 @@ namespace AttackSurfaceAnalyzer.Collectors
                 e is UnauthorizedAccessException ||
                 e is PathTooLongException ||
                 e is NotSupportedException ||
-                e is InvalidOperationException)
+                e is InvalidOperationException ||
+                e is FileNotFoundException)
             {
                 Log.Verbose("Failed to create FileInfo from File at {0} {1}", path, e.GetType().ToString());
             }

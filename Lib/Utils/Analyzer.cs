@@ -148,8 +148,6 @@ namespace AttackSurfaceAnalyzer.Utils
                             {
                                 try
                                 {
-                                    Log.Debug(JsonConvert.SerializeObject(compareResult));
-                                    Log.Debug($"{JsonConvert.SerializeObject(property.Name)} is the property name");
                                     var value = GetValueByPropertyName(compareResult.Compare, property.Name);
                                     if (value is List<string>)
                                     {

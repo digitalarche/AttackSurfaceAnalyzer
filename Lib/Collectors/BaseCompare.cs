@@ -93,47 +93,15 @@ namespace AttackSurfaceAnalyzer.Collectors
                 throw new ArgumentNullException(nameof(secondRunId));
             }
 
-            DatabaseManager.db.BeginTrans();
-
             var StopWatch = System.Diagnostics.Stopwatch.StartNew();
 
             var SubWatch = System.Diagnostics.Stopwatch.StartNew();
 
             var addObjects = DatabaseManager.GetMissingFromFirst(firstRunId, secondRunId);
 
-            SubWatch.Stop();
-            var t = TimeSpan.FromMilliseconds(StopWatch.ElapsedMilliseconds);
-            var answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
-                                    t.Hours,
-                                    t.Minutes,
-                                    t.Seconds,
-                                    t.Milliseconds);
-            Log.Debug("Completed Calculated Added Objects in {0}", answer);
-            SubWatch = System.Diagnostics.Stopwatch.StartNew();
-
             var removeObjects = DatabaseManager.GetMissingFromFirst(secondRunId, firstRunId);
 
-            SubWatch.Stop();
-            t = TimeSpan.FromMilliseconds(StopWatch.ElapsedMilliseconds);
-            answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
-                                    t.Hours,
-                                    t.Minutes,
-                                    t.Seconds,
-                                    t.Milliseconds);
-            Log.Debug("Completed Calculated Removed Objects in {0}", answer);
-            SubWatch = System.Diagnostics.Stopwatch.StartNew();
-
             var modifyObjects = DatabaseManager.GetModified(firstRunId, secondRunId);
-
-            SubWatch.Stop();
-            t = TimeSpan.FromMilliseconds(StopWatch.ElapsedMilliseconds);
-            answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
-                                    t.Hours,
-                                    t.Minutes,
-                                    t.Seconds,
-                                    t.Milliseconds);
-            Log.Debug("Completed Calculated Modified Objects in {0}", answer);
-            SubWatch = System.Diagnostics.Stopwatch.StartNew();
 
             Parallel.ForEach(addObjects,
                             (added =>
@@ -148,13 +116,13 @@ namespace AttackSurfaceAnalyzer.Collectors
                     ResultType = added.ColObj.ResultType,
                     Identity = added.ColObj.Identity
                 };
-                Log.Debug($"Adding {obj.Identity}");
+                //Log.Debug($"Adding {obj.Identity}");
                 Results[$"{added.ColObj.ResultType.ToString()}_{CHANGE_TYPE.CREATED.ToString()}"].Enqueue(obj);
             }));
 
             SubWatch.Stop();
-            t = TimeSpan.FromMilliseconds(StopWatch.ElapsedMilliseconds);
-            answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
+            var t = TimeSpan.FromMilliseconds(StopWatch.ElapsedMilliseconds);
+            var answer = string.Format(CultureInfo.InvariantCulture, "{0:D2}h:{1:D2}m:{2:D2}s:{3:D3}ms",
                                     t.Hours,
                                     t.Minutes,
                                     t.Seconds,
